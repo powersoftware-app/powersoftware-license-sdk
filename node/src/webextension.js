@@ -97,7 +97,8 @@ function toBase64Url(bytes) {
 
 /**
  * HMAC 签名（software/generate、software/upgrade 必须）
- * 签名串字段以换行分隔：productUniqueCode, machineCode, edition, expiryDays, clientOrderId, licenseCode, timestamp
+ * 签名串字段以换行分隔：productUniqueCode, machineCode, edition, expiryDays, clientOrderId, licenseCode, billingPeriod, timestamp
+ * billingPeriod 归一为 trim + 大写（缺省/generate 为空串），与 index.js 及服务端逐字节一致
  */
 export async function sign(apiSecret, params) {
   const payload = [
@@ -107,6 +108,7 @@ export async function sign(apiSecret, params) {
     params.expiryDays ?? 0,
     params.clientOrderId ?? '',
     params.licenseCode ?? '',
+    String(params.billingPeriod ?? '').trim().toUpperCase(),
     params.timestamp ?? '',
   ].join('\n');
   const key = await crypto.subtle.importKey(

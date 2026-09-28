@@ -78,7 +78,7 @@ machineCode = 'M' + base64url( sha256( fingerprint ) ).slice(0, 32)
 
 ## 2. Signing (software/generate, software/upgrade)
 
-Payload joined by `\n` in fixed order (empty string for missing `edition`/`licenseCode`, `0` for `expiryDays`):
+Payload joined by `\n` in fixed order (empty string for missing `edition`/`licenseCode`/`billingPeriod`, `0` for `expiryDays`; `billingPeriod` normalized to trim + UPPERCASE):
 
 ```text
 productUniqueCode 
@@ -87,10 +87,13 @@ productUniqueCode
  expiryDays 
  clientOrderId 
  licenseCode 
+ billingPeriod 
  timestamp
 ```
 
 `signature = base64url( HMAC-SHA256( licenseApiSecret, payload ) )`; `timestamp` in milliseconds, platform rejects drift > 5 minutes.
+
+> **Compatibility window**: `billingPeriod` is now covered by the signature (to prevent tampering with the upgrade target period). During the transition the server still also accepts the legacy 7-field signature that omits it, so existing clients are not broken; please upgrade to the new SDK that includes `billingPeriod` — legacy signatures will be rejected once the window closes.
 
 ## 3. Endpoints
 
@@ -113,7 +116,7 @@ Base: `https://www.powersoftware.app/frontApi` (overridable).
 | --- | --- | --- |
 | `productUniqueCode` / `licenseCode` / `machineCode` / `clientOrderId` | ✅ | Product code / license code to upgrade / machine code / idempotent order ID |
 | `edition` | ✅ | Target edition |
-| `billingPeriod` | ❌ | Target billing period (`PERMANENT`/`MONTHLY`/`YEARLY`): when an edition has multiple billing periods, specifies which one to upgrade to; defaults to the edition's first configured row (unknown values also fall back to the first row). Periodic licenses extend expiry by `base = max(now, old expiry)`; perpetual licenses keep the legacy `expiryDays` behavior. Not included in the signature |
+| `billingPeriod` | ❌ | Target billing period (`PERMANENT`/`MONTHLY`/`YEARLY`): when an edition has multiple billing periods, specifies which one to upgrade to; defaults to the edition's first configured row (unknown values also fall back to the first row). Periodic licenses extend expiry by `base = max(now, old expiry)`; perpetual licenses keep the legacy `expiryDays` behavior. **Included in the signature** (see §2) — the period in the request body must not be tampered with outside the signature |
 | `expiryDays` | ❌ | Custom validity days for perpetual licenses (ignored for periodic ones) |
 
 ### 3.1 Upgrade policy flag (licenseUpgradeMode)

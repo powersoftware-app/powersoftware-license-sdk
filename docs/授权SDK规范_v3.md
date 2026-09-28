@@ -79,7 +79,7 @@ machineCode = 'M' + base64url( sha256( fingerprint ) ).slice(0, 32)
 
 ## 2. 签名规则（software/generate、software/upgrade 必须）
 
-签名串按固定顺序、以 `\n` 换行分隔（缺省填空值：`edition` 空串、`expiryDays` 0、`licenseCode` 空串）：
+签名串按固定顺序、以 `\n` 换行分隔（缺省填空值：`edition` 空串、`expiryDays` 0、`licenseCode` 空串、`billingPeriod` 空串且归一为 trim + 大写）：
 
 ```text
 productUniqueCode
@@ -88,10 +88,13 @@ edition
 expiryDays
 clientOrderId
 licenseCode
+billingPeriod
 timestamp
 ```
 
 `signature = base64url( HMAC-SHA256( licenseApiSecret, 签名串 ) )`；`timestamp` 为毫秒，平台校验与服务器时间差 ≤ 5 分钟（防重放）。
+
+> **兼容窗口**：`billingPeriod` 已纳入签名（防止升级目标周期被篡改）。服务端在过渡期内仍同时接受不含该段的旧 7 段签名以不打断存量客户端；请尽快升级到含 `billingPeriod` 的新版 SDK，过渡期结束后旧签名将被拒绝。
 
 ## 3. 接口清单
 
@@ -115,7 +118,7 @@ timestamp
 | --- | --- | --- |
 | `productUniqueCode` / `licenseCode` / `machineCode` / `clientOrderId` | ✅ | 产品编码 / 待升级授权码 / 机器码 / 幂等订单号 |
 | `edition` | ✅ | 目标版本 |
-| `billingPeriod` | ❌ | 目标计费周期（`PERMANENT`/`MONTHLY`/`YEARLY`）：同一版本可配多条计费周期时指定升级到哪条；缺省取该版本配置首行（指定了不存在的周期也回退首行）。周期版按 `base = max(now, 旧到期)` 顺延有效期，永久版保留旧 `expiryDays` 兼容行为。不参与签名 |
+| `billingPeriod` | ❌ | 目标计费周期（`PERMANENT`/`MONTHLY`/`YEARLY`）：同一版本可配多条计费周期时指定升级到哪条；缺省取该版本配置首行（指定了不存在的周期也回退首行）。周期版按 `base = max(now, 旧到期)` 顺延有效期，永久版保留旧 `expiryDays` 兼容行为。**参与签名**（见 §2）：请求体里的周期不得在签名外被篡改 |
 | `expiryDays` | ❌ | 永久版自定义有效天数（周期版忽略该参数） |
 
 ### 3.1 检查版本更新（checkUpdate）

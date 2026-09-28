@@ -12,6 +12,16 @@ test('sign deterministic', () => {
   assert.equal(sign('secret', params), sign('secret', params));
 });
 
+test('sign binds billingPeriod', () => {
+  const base = { productUniqueCode: 'PRO-2026-001', machineCode: 'M123', edition: 'PRO', expiryDays: 0, clientOrderId: 'x', licenseCode: 'LIC', timestamp: 1000 };
+  const monthly = sign('secret', { ...base, billingPeriod: 'MONTHLY' });
+  const permanent = sign('secret', { ...base, billingPeriod: 'PERMANENT' });
+  // billingPeriod 必须进入签名串：仅周期不同 → 签名不同（防升级目标周期被篡改）
+  assert.notEqual(monthly, permanent);
+  // 归一：trim + 大写，与 selectByBusinessKey/pickLicenseEditionRow 同口径
+  assert.equal(sign('secret', { ...base, billingPeriod: ' monthly ' }), monthly);
+});
+
 test('purchaseUrl carries params', () => {
   const c = new LicenseClient({ productUniqueCode: 'PRO-2026-001' });
   const url = c.purchaseUrl('MABC', { base: 'https://www.powersoftware.app' });

@@ -229,7 +229,8 @@ function readLinuxMachineId() {
 
 /**
  * HMAC 签名（software/generate、software/upgrade 必须）
- * 签名串字段以换行分隔：productUniqueCode, machineCode, edition, expiryDays, clientOrderId, licenseCode, timestamp
+ * 签名串字段以换行分隔：productUniqueCode, machineCode, edition, expiryDays, clientOrderId, licenseCode, billingPeriod, timestamp
+ * billingPeriod 归一为 trim + 大写（缺省/generate 为空串）；服务端兼容窗口期内仍接受未含该段的旧 7 段签名
  */
 export function sign(apiSecret, params) {
   const payload = [
@@ -239,6 +240,7 @@ export function sign(apiSecret, params) {
     params.expiryDays ?? 0,
     params.clientOrderId ?? '',
     params.licenseCode ?? '',
+    String(params.billingPeriod ?? '').trim().toUpperCase(),
     params.timestamp ?? '',
   ].join('\n');
   return toBase64Url(crypto.createHmac('sha256', apiSecret).update(payload).digest());

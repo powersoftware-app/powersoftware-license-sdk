@@ -20,7 +20,8 @@ def _b64url(data: bytes) -> str:
 
 
 def sign(api_secret: str, params: dict) -> str:
-    """HMAC 签名：productUniqueCode \\n machineCode \\n edition \\n expiryDays \\n clientOrderId \\n licenseCode \\n timestamp"""
+    """HMAC 签名：productUniqueCode \\n machineCode \\n edition \\n expiryDays \\n clientOrderId \\n licenseCode \\n billingPeriod \\n timestamp
+    billingPeriod 归一为 strip + 大写（缺省/generate 为空串），与其他语言 SDK 及服务端逐字节一致。"""
     payload = "\n".join(
         [
             str(params.get("productUniqueCode", "")),
@@ -29,6 +30,7 @@ def sign(api_secret: str, params: dict) -> str:
             str(params.get("expiryDays", 0)),
             str(params.get("clientOrderId", "")),
             str(params.get("licenseCode", "")),
+            str(params.get("billingPeriod") or "").strip().upper(),
             str(params.get("timestamp", "")),
         ]
     )

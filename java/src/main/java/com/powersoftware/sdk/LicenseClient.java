@@ -47,8 +47,9 @@ public class LicenseClient {
         return MachineCode.get();
     }
 
-    /** HMAC 签名：productUniqueCode \\n machineCode \\n edition \\n expiryDays \\n clientOrderId \\n licenseCode \\n timestamp */
+    /** HMAC 签名：productUniqueCode \\n machineCode \\n edition \\n expiryDays \\n clientOrderId \\n licenseCode \\n billingPeriod \\n timestamp（billingPeriod 归一 trim+大写，缺省/generate 为空串） */
     public static String sign(String apiSecret, Map<String, Object> params) {
+        String billingPeriod = params.get("billingPeriod") == null ? "" : String.valueOf(params.get("billingPeriod")).trim().toUpperCase();
         String payload = String.join("\n",
                 str(params.get("productUniqueCode")),
                 str(params.get("machineCode")),
@@ -56,6 +57,7 @@ public class LicenseClient {
                 params.get("expiryDays") == null ? "0" : String.valueOf(params.get("expiryDays")),
                 str(params.get("clientOrderId")),
                 str(params.get("licenseCode")),
+                billingPeriod,
                 str(params.get("timestamp")));
         try {
             Mac mac = Mac.getInstance("HmacSHA256");

@@ -25,6 +25,16 @@ public class SmokeTest {
         params.put("timestamp", 1000L);
         check(LicenseClient.sign("secret", params).equals(LicenseClient.sign("secret", params)), "sign deterministic");
 
+        // billingPeriod 必须进入签名串：仅周期不同 → 签名不同（防升级目标周期被篡改）
+        Map<String, Object> monthly = new LinkedHashMap<>(params);
+        monthly.put("billingPeriod", "MONTHLY");
+        Map<String, Object> permanent = new LinkedHashMap<>(params);
+        permanent.put("billingPeriod", "PERMANENT");
+        check(!LicenseClient.sign("secret", monthly).equals(LicenseClient.sign("secret", permanent)), "sign binds billingPeriod");
+        Map<String, Object> mixedCase = new LinkedHashMap<>(params);
+        mixedCase.put("billingPeriod", " monthly ");
+        check(LicenseClient.sign("secret", mixedCase).equals(LicenseClient.sign("secret", monthly)), "billingPeriod normalized (trim+upper)");
+
         String url = new LicenseClient("PRO-2026-001", "secret").purchaseUrl("MABC");
         check(url.contains("productUniqueCode=PRO-2026-001") && url.contains("machineCode=MABC") && !url.contains("productId="), "purchaseUrl params");
         String url2 = new LicenseClient("PRO-2026-001", "secret").purchaseUrl("MABC", "https://www.powersoftware.cn");
