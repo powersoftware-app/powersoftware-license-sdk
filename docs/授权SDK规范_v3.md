@@ -192,7 +192,9 @@ https://www.powersoftware.app/product/license/purchase?productUniqueCode={produc
 
 - `verify` / `activate` 的 `expiryTime`：周期版为固定到期日，到期后 verify 返回 `expired` 错误码，客户端按既有过期逻辑弹购买提示即可，无需感知周期类型；
 - **续费顺延**：未到期续购（平台购买页或软件内续购）时，新有效期自动在**原到期时间**基础上顺延（`base = max(now, 旧到期)`），不损失剩余时长；过期后续购从当前时间起算；跨版本升级同理，升级到永久版会清空 `expiryTime` 回归永久语义；
-- 客户端如需展示「按月/按年」标识，以购买页版本配置为准；SDK 接口暂不返回 `billingPeriod` 字段。
+- 客户端如需展示「按月/按年」标识，`verify` / `activate` 响应已返回 `billingPeriod` 字段，可直接取用（与购买页版本配置一致）。
+
+**按量额度（licensePricingModel = QUOTA）**：发布页可选「版本分层（`EDITION`，默认）」或「按量额度（`QUOTA`）」两种售卖模式。QUOTA 产品只有单一基本版，以**额度包**出售（如 9.9 元 20 次、20 元 100 次），此时 `billingPeriod` 语义为**额度有效期**；购买时本包 `quotaAmount` 固化到授权码（`license.quota_amount`），`activate` / `verify` 响应随带该字段（EDITION 产品、存量码与试用码恒为 `null`）。额度累加跟随产品「升级策略」：`SAME_CODE`（默认）下平台在同机复购时把新额度**累加到原码**、到期时间叠加顺延（`verify` 返回即当前总额度）；`NEW_CODE` 下每单发独立新码、旧码保持有效，由客户端对同机多张有效码的 `quotaAmount` 求和。QUOTA 强制不抵扣、不拦降级；消耗记账（每次调用扣 1、归零拦截、余额展示）全部在客户端本地实现，平台不记录用量。
 
 ### 5.错误码（SDK 抛错统一携带 errorCode）
 
