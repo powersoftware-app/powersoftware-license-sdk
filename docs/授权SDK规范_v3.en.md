@@ -132,7 +132,7 @@ Clients use it to decide whether to show a "bind license code" input: with `SAME
 
 ### 3.2 Trial-count period (trialCountPeriod / trialPeriodKey)
 
-Alongside `trialCount` (the edition's trial quota; `null` when disabled), `activate` / `verify` / `claimTrial` success responses carry two fields:
+Alongside `trialCount` (the product-level trial quota; `null` when disabled; frozen onto trial licenses at claim time — later config changes do not affect existing trial codes; non-trial/legacy codes fall back to live product-level resolution), `activate` / `verify` / `claimTrial` success responses carry two fields:
 
 | Field | Meaning |
 | --- | --- |
