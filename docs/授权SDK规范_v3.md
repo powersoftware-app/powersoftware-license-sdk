@@ -153,7 +153,7 @@ timestamp
 
 ### 3.3 试用次数周期（trialCountPeriod / trialPeriodKey）
 
-`activate` / `verify` / `claimTrial` 成功响应中，`trialCount`（产品级配置的试用额度，未启用为 `null`；试用码领取时随码固化快照，发码后配置变更不影响存量试用码；非试用码/存量码回退产品级实时解析）附带两个字段：
+`activate` / `verify` / `claimTrial` 成功响应中，`trialCount`（版本配置的试用次数，未启用为 `null`）附带两个字段：
 
 | 字段 | 含义 |
 | --- | --- |
