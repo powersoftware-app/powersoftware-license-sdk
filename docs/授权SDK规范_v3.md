@@ -157,10 +157,10 @@ timestamp
 
 | 字段 | 含义 |
 | --- | --- |
-| `trialCountPeriod` | `TOTAL` 累计总额度（默认，扣完即止，与存量行为一致）/ `MONTHLY` 每自然月重置 |
-| `trialPeriodKey` | `MONTHLY` 时服务器当前自然月 key（如 `"2026-09"`，UTC）；`TOTAL` / 未启用时为 `null` |
+| `trialCountPeriod` | `TOTAL` 累计总额度（默认，扣完即止，与存量行为一致）/ `DAILY` 每自然日重置 / `WEEKLY` 每自然周重置（ISO-8601 周）/ `MONTHLY` 每自然月重置 |
+| `trialPeriodKey` | 重置型周期（`DAILY`/`WEEKLY`/`MONTHLY`）时服务器当前周期 key（`DAILY`=`"2026-09-30"`、`WEEKLY`=`"2026-W39"`、`MONTHLY`=`"2026-09"`，均 UTC）；`TOTAL` / 未启用时为 `null` |
 
-平台仍不记录消耗：`MONTHLY` 模式下客户端按 `{ periodKey, used }` 持久化用量——本地 `periodKey` 与最近一次响应的 `trialPeriodKey` 不一致时清零并按新 key 重新计数。月份边界**以服务器下发的 `trialPeriodKey` 为准，勿用本地时钟判定**（防改表刷额度）；每月额度独立，未用完不结转。
+平台仍不记录消耗：重置型周期（`DAILY`/`WEEKLY`/`MONTHLY`）下客户端按 `{ periodKey, used }` 持久化用量——本地 `periodKey` 与最近一次响应的 `trialPeriodKey` 不一致时清零并按新 key 重新计数。周期边界**以服务器下发的 `trialPeriodKey` 为准，勿用本地时钟判定**（防改表刷额度）；每周期额度独立，未用完不结转。
 
 ## 4. 本地凭证与校验缓存
 

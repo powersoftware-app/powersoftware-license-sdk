@@ -136,10 +136,10 @@ Alongside `trialCount` (the edition's trial quota; `null` when disabled), `activ
 
 | Field | Meaning |
 | --- | --- |
-| `trialCountPeriod` | `TOTAL` — one cumulative quota, over once used up (default, matches legacy behavior) / `MONTHLY` — refreshed every calendar month |
-| `trialPeriodKey` | Server's current calendar-month key (e.g. `"2026-09"`, UTC) when `MONTHLY`; `null` for `TOTAL` / disabled |
+| `trialCountPeriod` | `TOTAL` — one cumulative quota, over once used up (default, matches legacy behavior) / `DAILY` — refreshed every calendar day / `WEEKLY` — refreshed every ISO-8601 week / `MONTHLY` — refreshed every calendar month |
+| `trialPeriodKey` | Server's current period key for reset-type periods (`DAILY`=`"2026-09-30"`, `WEEKLY`=`"2026-W39"`, `MONTHLY`=`"2026-09"`, all UTC); `null` for `TOTAL` / disabled |
 
-The platform still records no usage: in `MONTHLY` mode persist the local counter as `{ periodKey, used }` — whenever the stored `periodKey` differs from the latest response's `trialPeriodKey`, reset `used` to 0 and store the new key. Month boundaries must be taken from the server-issued `trialPeriodKey`, **never from the local clock** (a rewound clock must not inflate the quota). Each month's quota is independent and never rolls over.
+The platform still records no usage: for reset-type periods (`DAILY`/`WEEKLY`/`MONTHLY`) persist the local counter as `{ periodKey, used }` — whenever the stored `periodKey` differs from the latest response's `trialPeriodKey`, reset `used` to 0 and store the new key. Period boundaries must be taken from the server-issued `trialPeriodKey`, **never from the local clock** (a rewound clock must not inflate the quota). Each period's quota is independent and never rolls over.
 
 ## 4. Local credential & verification cache
 
