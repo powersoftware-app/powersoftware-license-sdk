@@ -151,16 +151,16 @@ timestamp
 
 客户端据此决定是否展示「绑定授权码」输入框：`SAME_CODE` 下码不变，无需引导用户重新输入；`NEW_CODE` 下升级/续费会签发新码，须以 `software/upgrade` 返回的新 `licenseCode` 覆盖本地存储。产品未配置时返回 `SAME_CODE`；`verify` 结果缓存 60 秒，策略变更最长 60 秒生效。
 
-### 3.3 试用次数周期（trialCountPeriod / trialPeriodKey）
+### 3.3 试用额度周期（trialCountPeriod / trialPeriodKey）
 
-`activate` / `verify` / `claimTrial` 成功响应中，`trialCount`（版本配置的试用次数，未启用为 `null`）附带两个字段：
+`activate` / `verify` / `claimTrial` 成功响应中，`trialCount`（版本配置的试用额度，未启用为 `null`）附带两个字段：
 
 | 字段 | 含义 |
 | --- | --- |
-| `trialCountPeriod` | `TOTAL` 累计总次数（默认，扣完即止，与存量行为一致）/ `MONTHLY` 每自然月重置 |
+| `trialCountPeriod` | `TOTAL` 累计总额度（默认，扣完即止，与存量行为一致）/ `MONTHLY` 每自然月重置 |
 | `trialPeriodKey` | `MONTHLY` 时服务器当前自然月 key（如 `"2026-09"`，UTC）；`TOTAL` / 未启用时为 `null` |
 
-平台仍不记录消耗：`MONTHLY` 模式下客户端按 `{ periodKey, used }` 持久化用量——本地 `periodKey` 与最近一次响应的 `trialPeriodKey` 不一致时清零并按新 key 重新计数。月份边界**以服务器下发的 `trialPeriodKey` 为准，勿用本地时钟判定**（防改表刷次数）；每月额度独立，未用完不结转。
+平台仍不记录消耗：`MONTHLY` 模式下客户端按 `{ periodKey, used }` 持久化用量——本地 `periodKey` 与最近一次响应的 `trialPeriodKey` 不一致时清零并按新 key 重新计数。月份边界**以服务器下发的 `trialPeriodKey` 为准，勿用本地时钟判定**（防改表刷额度）；每月额度独立，未用完不结转。
 
 ## 4. 本地凭证与校验缓存
 
