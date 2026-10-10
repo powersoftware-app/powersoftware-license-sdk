@@ -246,6 +246,24 @@ export function sign(apiSecret, params) {
   return toBase64Url(crypto.createHmac('sha256', apiSecret).update(payload).digest());
 }
 
+/**
+ * 软件 /license/software/addQuota 专用 HMAC 签名（与 generate/upgrade 的 sign() 互不影响）。
+ * 签名串换行分隔：productUniqueCode, licenseCode, addAmount, quotaType, clientOrderId, edition, timestamp
+ * quotaType 归一 trim+大写（缺省 quota）；edition 缺省空串；与服务端 buildSoftwareAddQuotaSignPayload 逐字节一致。
+ */
+export function signAddQuota(apiSecret, params) {
+  const payload = [
+    params.productUniqueCode ?? '',
+    params.licenseCode ?? '',
+    params.addAmount ?? 0,
+    String(params.quotaType ?? 'quota').trim().toUpperCase(),
+    params.clientOrderId ?? '',
+    String(params.edition ?? '').trim(),
+    params.timestamp ?? '',
+  ].join('\n');
+  return toBase64Url(crypto.createHmac('sha256', apiSecret).update(payload).digest());
+}
+
 /** 校验缓存条目：60s 内复用服务端 verify 结果，过期/失败再联网 */
 function cacheHit(cache, now) {
   return cache && now - cache.at < VERIFY_CACHE_TTL_MS ? cache.data : null;
@@ -323,7 +341,7 @@ export class LicenseClient {
     return this.request('/license/software/generate', body, { signed: true });
   }
 
-  /** 软件内升级/续费（HMAC 签名，幂等：clientOrderId）；billingPeriod：目标计费周期（同版本多周期产品指定升级到哪条，缺省取该版本配置首行） */
+  /** 软件内升级/续费（HMAC 签名，幂等：clientOrderId）；billingPeriod：目标计费周期（同版本多周期产品指定升级到哪条，缺省取该版本配置首行）*/
   upgradeForSoftware(params) {
     const body = {
       productUniqueCode: params.productUniqueCode ?? this.productUniqueCode,
@@ -335,6 +353,25 @@ export class LicenseClient {
       clientOrderId: params.clientOrderId,
     };
     return this.request('/license/software/upgrade', body, { signed: true });
+  }
+  
+  /**
+   * 非平台代收：给 QUOTA 额度码累加额度（HMAC 签名，走 addQuota 专用签名串）。
+   * quotaType: 'trial' 累加试用额度 trialCount（不改版本）| 'quota'（默认）累加付费额度 quotaAmount。
+   * edition（仅 quota）：加额度同时把码转到该付费版本；clientOrderId：审计/追溯（平台不做订单级幂等，重复发放由调用方去重）。
+   */
+  addQuotaForSoftware(params) {
+    const body = {
+      productUniqueCode: params.productUniqueCode ?? this.productUniqueCode,
+      licenseCode: params.licenseCode,
+      addAmount: params.addAmount,
+      quotaType: params.quotaType ?? 'quota',
+      timestamp: Date.now(),
+    };
+    if (params.edition != null) body.edition = params.edition;
+    if (params.clientOrderId != null) body.clientOrderId = params.clientOrderId;
+    body.signature = signAddQuota(this.apiSecret, body);
+    return this.request('/license/software/addQuota', body);
   }
 
   /** 带 60s 缓存的校验：付费功能点击前调用 */
@@ -360,4 +397,4 @@ export class LicenseClient {
   }
 }
 
-export default { machineCode, sign, LicenseClient };
+export default { machineCode, sign, signAddQuota, LicenseClient };

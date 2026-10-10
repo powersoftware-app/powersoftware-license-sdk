@@ -72,6 +72,51 @@ public class LicenseClient {
         return v == null ? "" : String.valueOf(v);
     }
 
+    /** addQuota 专用 HMAC 签名：productUniqueCode \n licenseCode \n addAmount \n quotaType \n clientOrderId \n edition \n timestamp（quotaType 归一 trim+大写，缺省 QUOTA；edition 缺省空串）*/
+    public static String signAddQuota(String apiSecret, Map<String, Object> params) {
+        String quotaType = params.get("quotaType") == null ? "QUOTA" : String.valueOf(params.get("quotaType")).trim().toUpperCase();
+        String edition = params.get("edition") == null ? "" : String.valueOf(params.get("edition")).trim();
+        String payload = String.join("\n",
+                str(params.get("productUniqueCode")),
+                str(params.get("licenseCode")),
+                params.get("addAmount") == null ? "0" : String.valueOf(params.get("addAmount")),
+                quotaType,
+                str(params.get("clientOrderId")),
+                edition,
+                str(params.get("timestamp")));
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(apiSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(mac.doFinal(payload.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception e) {
+            throw new IllegalStateException("HMAC unavailable", e);
+        }
+    }
+
+    /**
+     * 非平台代收：给 QUOTA 额度码累加额度（HMAC 签名，走 addQuota 专用签名串）。
+     * quotaType: "trial" 累加试用额度 trialCount（不改版本）| "quota"（默认）累加付费额度 quotaAmount。
+     * edition（仅 quota）：加额度同时把码转到该付费版本；clientOrderId：审计/追溯（平台不做订单级幂等，重复发放由调用方去重）。
+     */
+    public Map<String, Object> addQuotaForSoftware(String licenseCode, int addAmount, String quotaType, String edition, String clientOrderId) throws Exception {
+        requireProductCode();
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("productUniqueCode", productUniqueCode);
+        body.put("licenseCode", licenseCode);
+        body.put("addAmount", addAmount);
+        body.put("quotaType", quotaType == null ? "quota" : quotaType);
+        if (edition != null) body.put("edition", edition);
+        if (clientOrderId != null) body.put("clientOrderId", clientOrderId);
+        body.put("timestamp", System.currentTimeMillis());
+        body.put("signature", signAddQuota(apiSecret, body));
+        return request("/license/software/addQuota", body, false);
+    }
+
+    /** 重载：仅指定额度类型（trial/quota），无 edition/订单号 */
+    public Map<String, Object> addQuotaForSoftware(String licenseCode, int addAmount, String quotaType) throws Exception {
+        return addQuotaForSoftware(licenseCode, addAmount, quotaType, null, null);
+    }
+
     private static Map<String, Object> mapOf(Object... kvs) {
         Map<String, Object> m = new LinkedHashMap<String, Object>();
         for (int i = 0; i < kvs.length; i += 2) {
