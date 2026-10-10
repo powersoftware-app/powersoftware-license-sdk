@@ -203,13 +203,20 @@ public class LicenseClient {
         return request("/product/updateCheck", mapOf("productUniqueCode", productUniqueCode, "currentVersion", currentVersion), false);
     }
 
+    /** 软件内支付后发码（兼容旧签名，不带计费周期） */
     public Map<String, Object> generateForSoftware(String machineCodeValue, String edition, int expiryDays, String clientOrderId) throws Exception {
+        return generateForSoftware(machineCodeValue, edition, expiryDays, clientOrderId, null);
+    }
+
+    /** 软件内支付后发码；billingPeriod：目标计费周期（同版本多周期产品指定发哪条，缺省取该版本配置首行；QUOTA/周期产品据此固化额度/周期） */
+    public Map<String, Object> generateForSoftware(String machineCodeValue, String edition, int expiryDays, String clientOrderId, String billingPeriod) throws Exception {
         requireProductCode();
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("productUniqueCode", productUniqueCode);
         body.put("machineCode", machineCodeValue);
         body.put("edition", edition == null ? "" : edition);
         body.put("expiryDays", expiryDays);
+        if (billingPeriod != null) body.put("billingPeriod", billingPeriod);
         body.put("clientOrderId", clientOrderId == null ? "" : clientOrderId);
         return request("/license/software/generate", body, true);
     }

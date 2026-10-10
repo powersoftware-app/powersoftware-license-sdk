@@ -329,13 +329,14 @@ export class LicenseClient {
     return this.request('/product/updateCheck', { productUniqueCode: this.productUniqueCode, currentVersion });
   }
 
-  /** 软件内支付后发码（HMAC 签名，幂等：clientOrderId） */
+  /** 软件内支付后发码（HMAC 签名，幂等：clientOrderId）；billingPeriod：目标计费周期（同版本多周期产品指定发哪条，缺省取该版本配置首行；QUOTA/周期产品据此固化额度/周期）*/
   generateForSoftware(params) {
     const body = {
       productUniqueCode: params.productUniqueCode ?? this.productUniqueCode,
       machineCode: params.machineCode,
       edition: params.edition,
       expiryDays: params.expiryDays ?? 0,
+      billingPeriod: params.billingPeriod,
       clientOrderId: params.clientOrderId,
     };
     return this.request('/license/software/generate', body, { signed: true });

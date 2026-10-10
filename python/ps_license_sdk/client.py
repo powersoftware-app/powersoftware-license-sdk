@@ -39,7 +39,13 @@ def sign(api_secret: str, params: dict) -> str:
 
 def sign_add_quota(api_secret: str, params: dict) -> str:
     """/license/software/addQuota 专用 HMAC 签名（与 generate/upgrade 的 sign() 互不影响）。
-    签名串：productUniqueCode \n licenseCode \n addAmount \n quotaType \n clientOrderId \n edition \n timestamp
+    签名串：productUniqueCode 
+ licenseCode 
+ addAmount 
+ quotaType 
+ clientOrderId 
+ edition 
+ timestamp
     quotaType 归一 strip+大写（缺省 quota）；edition 缺省空串；与服务端逐字节一致。"""
     payload = "\n".join(
         [
@@ -118,7 +124,8 @@ class LicenseClient:
             raise LicenseError("productUniqueCode required", "PRODUCT_ID_REQUIRED")
         return self.request("/product/updateCheck", {"productUniqueCode": self.product_unique_code, "currentVersion": current_version})
 
-    def generate_for_software(self, machine_code_value: str, edition: str = "", expiry_days: int = 0, client_order_id: str = ""):
+    def generate_for_software(self, machine_code_value: str, edition: str = "", expiry_days: int = 0, client_order_id: str = "", billing_period: str = None):
+        """软件内支付后发码。billing_period：目标计费周期（同版本多周期产品指定发哪条，缺省取该版本配置首行；QUOTA/周期产品据此固化额度/周期）。"""
         if not self.product_unique_code:
             raise LicenseError("productUniqueCode required", "PRODUCT_ID_REQUIRED")
         return self.request(
@@ -128,6 +135,7 @@ class LicenseClient:
                 "machineCode": machine_code_value or machine_code(),
                 "edition": edition,
                 "expiryDays": expiry_days,
+                "billingPeriod": billing_period,
                 "clientOrderId": client_order_id,
             },
             signed=True,
