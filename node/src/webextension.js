@@ -158,7 +158,7 @@ export class LicenseClient {
   /**
    * 激活：授权码 + 机器码 → licenseCode + activationToken
    * 返回字段按计费模型分组（不适用的恒 null）：通用 {licenseCode, activationToken, status, edition, expiryTime, billingPeriod}；
-   * EDITION 专属 {softwareMajorVersion, trialDays, trialExpiryTime, licenseDeductionEnabled}；QUOTA 专属 {quotaAmount, quotaUsed, quotaRemaining, quotaNextExpiry, trialCount, trialUsed, trialRemaining}
+   * EDITION 专属 {softwareMajorVersion, trialDays, trialExpiryTime, licenseDeductionEnabled}；QUOTA 专属 {quotaAmount, quotaUsed, quotaRemaining, quotaNextExpiry, trialCount, trialUsed, trialRemaining, trialNextResetTime}
    */
   activate(licenseCode, machineCodeValue) {
     return this.request('/license/activate', { licenseCode, machineCode: machineCodeValue });
@@ -176,7 +176,7 @@ export class LicenseClient {
    * 额度消耗（仅 QUOTA 产品，服务端记账；EDITION 产品不调用）：插件本地 storage 拦不住跨浏览器/跨笔记本多倍消耗，
    * 改由平台在 license_usage 按票扣减并回余额（付费票 FIFO 各自有效期 / 试用周期桶）；requestId 幂等防重试重复扣，不传则本地生成。
    * @param {'quota'|'trial'} [kind] 消耗类型，默认 'quota'；'trial' 扣试用周期桶
-   * @returns {Promise<{ consumed, kind, quotaUsed, quotaRemaining, quotaNextExpiry, trialUsed, trialRemaining }>} 服务端按票聚合的双钱包余额 + 额度有效期
+   * @returns {Promise<{ consumed, kind, quotaUsed, quotaRemaining, quotaNextExpiry, trialUsed, trialRemaining, trialNextResetTime }>} 服务端按票聚合的双钱包余额 + 额度有效期
    */
   consume(licenseCode, machineCodeValue, activationToken, amount, requestId, kind) {
     return this.request('/license/quota/consume', {

@@ -133,12 +133,13 @@ Clients use it to decide whether to show a "bind license code" input: with `SAME
 
 ### 3.2 Trial-quota period (trialCountPeriod / trialPeriodKey)
 
-Alongside `trialCount` (the edition's trial quota; `null` when disabled), `activate` / `verify` / `claimTrial` success responses carry two fields:
+Alongside `trialCount` (the edition's trial quota; `null` when disabled), `activate` / `verify` / `claimTrial` success responses carry three fields:
 
 | Field | Meaning |
 | --- | --- |
 | `trialCountPeriod` | `TOTAL` — one cumulative quota, over once used up (default, matches legacy behavior) / `DAILY` — refreshed every calendar day / `WEEKLY` — refreshed every ISO-8601 week / `MONTHLY` — refreshed every calendar month |
 | `trialPeriodKey` | Server's current period key for reset-type periods (`DAILY`=`"2026-09-30"`, `WEEKLY`=`"2026-W39"`, `MONTHLY`=`"2026-09"`, all UTC); `null` for `TOTAL` / disabled |
+| `trialNextResetTime` | Trial quota "next reset time" (a UTC boundary, server-derived): when the current reset-type bucket rolls into the next segment (DAILY→next day 00:00 / WEEKLY→next Monday 00:00 / MONTHLY→1st of next month 00:00), i.e. the moment `trialPeriodKey` changes and the balance naturally resets; `null` for `TOTAL` / disabled / EDITION (the trial-side counterpart of `quotaNextExpiry`) |
 
 Trial quota is now server-accounted (stored in `license_usage` alongside paid quota, `kind=trial`): the client/plugin should call `consume(..., kind='trial')` to deduct and treat `trialUsed`/`trialRemaining` (from `consume`/`verify`) as the trusted balance. For reset-type periods (`DAILY`/`WEEKLY`/`MONTHLY`), `trialPeriodKey` is the server trial bucket key — a new period naturally opens a new bucket, the old one is no longer matched → the quota resets on its own (no cron needed). Period boundaries must be taken from the server-issued `trialPeriodKey`, **never from the local clock** (a rewound clock must not inflate the quota). The local count is only an offline display cache; each period's quota is independent and never rolls over.
 
@@ -196,6 +197,7 @@ Each product picks one pricing model: `licensePricingModel = EDITION` (edition t
 | `quotaNextExpiry` | QUOTA | quota validity: earliest `expires_at` among not-expired lots with balance; `null` when a permanent lot with balance exists (or no lot has balance) — frontend uses `quotaRemaining` to show "permanent" / "exhausted" |
 | `trialCount` / `trialCountPeriod` / `trialPeriodKey` | QUOTA | per-use trial quota / reset period / current period-bucket key; **always `null` for EDITION** (EDITION trial uses the day-based `trialDays`) |
 | `trialUsed` / `trialRemaining` | QUOTA | server-side used / remaining of the current trial period bucket |
+| `trialNextResetTime` | QUOTA | trial quota's next reset time (UTC boundary, server-derived): when the current reset-type bucket rolls to the next segment; the trial-side counterpart of `quotaNextExpiry`; `null` for `TOTAL`/disabled/EDITION |
 | `consume(licenseCode, machineCode, activationToken, amount, requestId, kind)` | QUOTA | quota consumption endpoint, `kind: 'quota' | 'trial'`; never called for EDITION |
 
 Key notes:

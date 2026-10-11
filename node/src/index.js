@@ -310,7 +310,7 @@ export class LicenseClient {
   /**
    * 激活：授权码 + 机器码 → licenseCode + activationToken
    * 返回字段按产品计费模型分组（不适用的恒 null）：通用 {licenseCode, activationToken, status, edition, expiryTime, billingPeriod}；
-   * EDITION 专属 {softwareMajorVersion, trialDays, trialExpiryTime, licenseDeductionEnabled}；QUOTA 专属 {quotaAmount, quotaUsed, quotaRemaining, quotaNextExpiry, trialCount, trialUsed, trialRemaining}
+   * EDITION 专属 {softwareMajorVersion, trialDays, trialExpiryTime, licenseDeductionEnabled}；QUOTA 专属 {quotaAmount, quotaUsed, quotaRemaining, quotaNextExpiry, trialCount, trialUsed, trialRemaining, trialNextResetTime}
    */
   activate(licenseCode, machineCodeValue) {
     return this.request('/license/activate', { licenseCode, machineCode: machineCodeValue });
@@ -331,7 +331,7 @@ export class LicenseClient {
    * @param {number} amount 本次消耗数量（正整数）
    * @param {string} [requestId] 幂等键（强烈建议传，防网络重试重复扣减）；不传则本地生成一次性 nonce
    * @param {'quota'|'trial'} [kind] 消耗类型，默认 'quota'（付费额度票）；'trial' 扣试用周期桶
-   * @returns {Promise<{ consumed, kind, quotaUsed, quotaRemaining, quotaNextExpiry, trialUsed, trialRemaining }>} 服务端按票聚合的双钱包余额 + 额度有效期，据此拦截
+   * @returns {Promise<{ consumed, kind, quotaUsed, quotaRemaining, quotaNextExpiry, trialUsed, trialRemaining, trialNextResetTime }>} 服务端按票聚合的双钱包余额 + 额度有效期，据此拦截
    */
   consume(licenseCode, machineCodeValue, activationToken, amount, requestId, kind) {
     return this.request('/license/quota/consume', {

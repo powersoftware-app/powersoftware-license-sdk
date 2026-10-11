@@ -154,12 +154,13 @@ timestamp
 
 ### 3.3 试用额度周期（trialCountPeriod / trialPeriodKey）
 
-`activate` / `verify` / `claimTrial` 成功响应中，`trialCount`（版本配置的试用额度，未启用为 `null`）附带两个字段：
+`activate` / `verify` / `claimTrial` 成功响应中，`trialCount`（版本配置的试用额度，未启用为 `null`）附带三个字段：
 
 | 字段 | 含义 |
 | --- | --- |
 | `trialCountPeriod` | `TOTAL` 累计总额度（默认，扣完即止，与存量行为一致）/ `DAILY` 每自然日重置 / `WEEKLY` 每自然周重置（ISO-8601 周）/ `MONTHLY` 每自然月重置 |
 | `trialPeriodKey` | 重置型周期（`DAILY`/`WEEKLY`/`MONTHLY`）时服务器当前周期 key（`DAILY`=`"2026-09-30"`、`WEEKLY`=`"2026-W39"`、`MONTHLY`=`"2026-09"`，均 UTC）；`TOTAL` / 未启用时为 `null` |
+| `trialNextResetTime` | 试用额度「下次重置时间」（UTC 边界时刻，服务端派生）：重置型周期当前桶滚到下一段的时刻（DAILY→次日 00:00 / WEEKLY→下周一 00:00 / MONTHLY→次月 1 日 00:00），即 `trialPeriodKey` 变化、余额天然清零那一刻；`TOTAL` / 未启用 / EDITION 为 `null`（与付费侧 `quotaNextExpiry` 对称） |
 
 试用额度已纳入服务端记账（与付费额度同存 `license_usage`，`kind=trial`）：客户端/插件应改调 `consume(..., kind='trial')` 扣减，以响应/verify 的 `trialUsed`/`trialRemaining` 为可信余额。重置型周期（`DAILY`/`WEEKLY`/`MONTHLY`）下 `trialPeriodKey` 即服务端试用桶 key，新周期自然落新桶→旧桶不再命中→额度天然清零（无需定时任务）。周期边界**以服务器下发的 `trialPeriodKey` 为准，勿用本地时钟判定**（防改表刷额度）；本地计数仅作离线展示缓存，每周期额度独立、未用完不结转。
 
@@ -219,6 +220,7 @@ https://www.powersoftware.app/product/license/purchase?productUniqueCode={produc
 | `quotaNextExpiry` | QUOTA | 额度有效期：未过期且有剩的付费票中最早到期的 `expires_at`；存在永久有剩票（或无有剩票）时为 `null`（前端按 `quotaRemaining` 判「永久」/「已用尽」） |
 | `trialCount` / `trialCountPeriod` / `trialPeriodKey` | QUOTA | 按次试用的额度 / 重置周期 / 当前周期桶 key；**EDITION 恒 `null`**（EDITION 试用走 `trialDays` 按天口径） |
 | `trialUsed` / `trialRemaining` | QUOTA | 服务端当前试用周期桶的已用 / 剩余 |
+| `trialNextResetTime` | QUOTA | 试用额度下次重置时间（UTC 边界，服务端派生）：重置型周期当前桶滚到下一段的时刻，是 `quotaNextExpiry` 在试用侧的对称字段；`TOTAL`/未启用/EDITION 为 `null` |
 | `consume(licenseCode, machineCode, activationToken, amount, requestId, kind)` | QUOTA | 额度消耗接口，`kind: 'quota' | 'trial'`；EDITION 不调用 |
 
 关键提示：
