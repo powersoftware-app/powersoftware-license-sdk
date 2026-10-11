@@ -104,7 +104,7 @@ timestamp
 | --- | --- | --- | --- |
 | 激活 | `POST /license/activate` | 无 | `activate(licenseCode, machineCode)` |
 | 校验 | `POST /license/verify` | 无 | `verify(licenseCode, machineCode, activationToken)` |
-| 额度消耗（仅 QUOTA） | `POST /license/quota/consume` | 无（凭 activationToken） | `consume(licenseCode, machineCode, activationToken, amount, requestId)` |
+| 额度消耗（仅 QUOTA） | `POST /license/quota/consume` | 无（凭 activationToken） | `consume(licenseCode, machineCode, activationToken, amount, requestId, kind)`（`kind` 默认 `quota`，可传 `trial`） |
 | 解绑 | `POST /license/deactivate` | 登录（浏览器场景） | `deactivate(licenseCode, machineCode)` |
 | 软件内发码 | `POST /license/software/generate` | HMAC 签名 | `generateForSoftware({...})` |
 | 软件内升级/续费 | `POST /license/software/upgrade` | HMAC 签名 | `upgradeForSoftware({...})` |
@@ -161,7 +161,7 @@ timestamp
 | `trialCountPeriod` | `TOTAL` 累计总额度（默认，扣完即止，与存量行为一致）/ `DAILY` 每自然日重置 / `WEEKLY` 每自然周重置（ISO-8601 周）/ `MONTHLY` 每自然月重置 |
 | `trialPeriodKey` | 重置型周期（`DAILY`/`WEEKLY`/`MONTHLY`）时服务器当前周期 key（`DAILY`=`"2026-09-30"`、`WEEKLY`=`"2026-W39"`、`MONTHLY`=`"2026-09"`，均 UTC）；`TOTAL` / 未启用时为 `null` |
 
-平台仍不记录消耗：重置型周期（`DAILY`/`WEEKLY`/`MONTHLY`）下客户端按 `{ periodKey, used }` 持久化用量——本地 `periodKey` 与最近一次响应的 `trialPeriodKey` 不一致时清零并按新 key 重新计数。周期边界**以服务器下发的 `trialPeriodKey` 为准，勿用本地时钟判定**（防改表刷额度）；每周期额度独立，未用完不结转。
+试用额度已纳入服务端记账（与付费额度同存 `license_usage`，`kind=trial`）：客户端/插件应改调 `consume(..., kind='trial')` 扣减，以响应/verify 的 `trialUsed`/`trialRemaining` 为可信余额。重置型周期（`DAILY`/`WEEKLY`/`MONTHLY`）下 `trialPeriodKey` 即服务端试用桶 key，新周期自然落新桶→旧桶不再命中→额度天然清零（无需定时任务）。周期边界**以服务器下发的 `trialPeriodKey` 为准，勿用本地时钟判定**（防改表刷额度）；本地计数仅作离线展示缓存，每周期额度独立、未用完不结转。
 
 ## 4. 本地凭证与校验缓存
 

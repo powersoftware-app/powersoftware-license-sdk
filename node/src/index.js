@@ -318,19 +318,22 @@ export class LicenseClient {
   }
 
   /**
-   * 额度消耗（QUOTA 产品，服务端记账）：每次功能调用扣减时上报，平台原子扣减 quota_used 并回本码余额。
+   * 额度消耗（QUOTA 产品，服务端记账）：每次功能调用扣减时上报，平台在服务端 license_usage 按票扣减并回余额。
    * 把用量从本地 storage 上收到服务端，同一授权码跨设备/重装共享一份账，杜绝多倍消耗。
+   * 付费额度按票各自有效期、最早到期先扣(FIFO)；试用额度按服务端周期桶记账；remaining=Σ有效票；码不因额度耗尽而 expired。
    * @param {number} amount 本次消耗数量（正整数）
    * @param {string} [requestId] 幂等键（强烈建议传，防网络重试重复扣减）；不传则本地生成一次性 nonce
-   * @returns {Promise<{ consumed, quotaAmount, quotaUsed, quotaRemaining }>} 均为本码口径；quotaRemaining 为服务端权威剩余，据此拦截
+   * @param {'quota'|'trial'} [kind] 消耗类型，默认 'quota'（付费额度票）；'trial' 扣试用周期桶
+   * @returns {Promise<{ consumed, kind, quotaUsed, quotaRemaining, trialUsed, trialRemaining }>} 服务端按票聚合的双钱包余额，据此拦截
    */
-  consume(licenseCode, machineCodeValue, activationToken, amount, requestId) {
+  consume(licenseCode, machineCodeValue, activationToken, amount, requestId, kind) {
     return this.request('/license/quota/consume', {
       licenseCode,
       machineCode: machineCodeValue,
       activationToken,
       amount,
       requestId: requestId || genRequestId(),
+      kind: kind || 'quota',
     });
   }
 

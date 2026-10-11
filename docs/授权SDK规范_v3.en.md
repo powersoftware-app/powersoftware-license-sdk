@@ -140,7 +140,7 @@ Alongside `trialCount` (the edition's trial quota; `null` when disabled), `activ
 | `trialCountPeriod` | `TOTAL` — one cumulative quota, over once used up (default, matches legacy behavior) / `DAILY` — refreshed every calendar day / `WEEKLY` — refreshed every ISO-8601 week / `MONTHLY` — refreshed every calendar month |
 | `trialPeriodKey` | Server's current period key for reset-type periods (`DAILY`=`"2026-09-30"`, `WEEKLY`=`"2026-W39"`, `MONTHLY`=`"2026-09"`, all UTC); `null` for `TOTAL` / disabled |
 
-The platform still records no usage: for reset-type periods (`DAILY`/`WEEKLY`/`MONTHLY`) persist the local counter as `{ periodKey, used }` — whenever the stored `periodKey` differs from the latest response's `trialPeriodKey`, reset `used` to 0 and store the new key. Period boundaries must be taken from the server-issued `trialPeriodKey`, **never from the local clock** (a rewound clock must not inflate the quota). Each period's quota is independent and never rolls over.
+Trial quota is now server-accounted (stored in `license_usage` alongside paid quota, `kind=trial`): the client/plugin should call `consume(..., kind='trial')` to deduct and treat `trialUsed`/`trialRemaining` (from `consume`/`verify`) as the trusted balance. For reset-type periods (`DAILY`/`WEEKLY`/`MONTHLY`), `trialPeriodKey` is the server trial bucket key — a new period naturally opens a new bucket, the old one is no longer matched → the quota resets on its own (no cron needed). Period boundaries must be taken from the server-issued `trialPeriodKey`, **never from the local clock** (a rewound clock must not inflate the quota). The local count is only an offline display cache; each period's quota is independent and never rolls over.
 
 ## 4. Local credential & verification cache
 

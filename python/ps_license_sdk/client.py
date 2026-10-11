@@ -110,11 +110,13 @@ class LicenseClient:
             {"licenseCode": license_code, "machineCode": machine_code_value or machine_code(), "activationToken": activation_token},
         )
 
-    def consume(self, license_code: str, amount: int, machine_code_value: str = None, activation_token: str = "", request_id: str = None):
-        """额度消耗（QUOTA 产品，服务端记账）：每次功能调用扣减时上报，平台原子扣 quota_used 并回本码余额。
+    def consume(self, license_code: str, amount: int, machine_code_value: str = None, activation_token: str = "", request_id: str = None, kind: str = "quota"):
+        """额度消耗（QUOTA 产品，服务端记账）：每次功能调用扣减时上报，平台在服务端 license_usage 按票扣减并回余额。
         把用量从本地文件上收到服务端，同一授权码跨设备/重装共享一份账，杜绝多倍消耗。
+        付费额度按票各自有效期、最早到期先扣(FIFO)；试用额度按服务端周期桶记账；remaining=Σ有效票；码不因额度耗尽而 expired。
         request_id：幂等键（强烈建议传，防网络重试重复扣减）；不传则本地生成 uuid4。
-        返回 { consumed, quotaAmount, quotaUsed, quotaRemaining }（均为本码口径），quotaRemaining 为服务端权威剩余，据此拦截。"""
+        kind：'quota'（默认，付费额度票）/ 'trial'（试用周期桶）。
+        返回 { consumed, kind, quotaUsed, quotaRemaining, trialUsed, trialRemaining }（服务端按票聚合的双钱包余额），据此拦截。"""
         return self.request(
             "/license/quota/consume",
             {
@@ -123,6 +125,7 @@ class LicenseClient:
                 "activationToken": activation_token,
                 "amount": amount,
                 "requestId": request_id or str(uuid.uuid4()),
+                "kind": kind or "quota",
             },
         )
 

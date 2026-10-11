@@ -167,16 +167,18 @@ export class LicenseClient {
 
   /**
    * 额度消耗（QUOTA 产品，服务端记账）：插件本地 storage 拦不住跨浏览器/跨笔记本多倍消耗，
-   * 改由平台扣 quota_used 并回本码余额（quotaRemaining）；requestId 幂等防重试重复扣，不传则本地生成。
-   * @returns {Promise<{ consumed, quotaAmount, quotaUsed, quotaRemaining }>} 均为本码口径
+   * 改由平台在 license_usage 按票扣减并回余额（付费票 FIFO 各自有效期 / 试用周期桶）；requestId 幂等防重试重复扣，不传则本地生成。
+   * @param {'quota'|'trial'} [kind] 消耗类型，默认 'quota'；'trial' 扣试用周期桶
+   * @returns {Promise<{ consumed, kind, quotaUsed, quotaRemaining, trialUsed, trialRemaining }>} 服务端按票聚合的双钱包余额
    */
-  consume(licenseCode, machineCodeValue, activationToken, amount, requestId) {
+  consume(licenseCode, machineCodeValue, activationToken, amount, requestId, kind) {
     return this.request('/license/quota/consume', {
       licenseCode,
       machineCode: machineCodeValue,
       activationToken,
       amount,
       requestId: requestId || randomUuid(),
+      kind: kind || 'quota',
     });
   }
 
