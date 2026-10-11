@@ -165,6 +165,21 @@ export class LicenseClient {
     return this.request('/license/verify', { licenseCode, machineCode: machineCodeValue, activationToken });
   }
 
+  /**
+   * 额度消耗（QUOTA 产品，服务端记账）：插件本地 storage 拦不住跨浏览器/跨笔记本多倍消耗，
+   * 改由平台扣 quota_used 并回本码余额（quotaRemaining）；requestId 幂等防重试重复扣，不传则本地生成。
+   * @returns {Promise<{ consumed, quotaAmount, quotaUsed, quotaRemaining }>} 均为本码口径
+   */
+  consume(licenseCode, machineCodeValue, activationToken, amount, requestId) {
+    return this.request('/license/quota/consume', {
+      licenseCode,
+      machineCode: machineCodeValue,
+      activationToken,
+      amount,
+      requestId: requestId || randomUuid(),
+    });
+  }
+
   /** 解绑（换机）：通常需登录态，浏览器场景由个人中心调用 */
   deactivate(licenseCode, machineCodeValue) {
     return this.request('/license/deactivate', { licenseCode, machineCode: machineCodeValue });

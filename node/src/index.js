@@ -269,6 +269,14 @@ function cacheHit(cache, now) {
   return cache && now - cache.at < VERIFY_CACHE_TTL_MS ? cache.data : null;
 }
 
+/** 消耗幂等键（未显式传入时的兜底）：优先 crypto.randomUUID，降级时间戳+随机 */
+function genRequestId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'REQ' + Date.now() + '-' + Math.floor(Math.random() * 1e9);
+}
+
 export class LicenseClient {
   constructor({ baseUrl = DEFAULT_BASE_URL, apiSecret = '', productUniqueCode, fetchImpl = fetch, cacheTtlMs = VERIFY_CACHE_TTL_MS } = {}) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
@@ -307,6 +315,23 @@ export class LicenseClient {
   /** 校验：有效返回 { valid, edition, expiryTime } */
   verify(licenseCode, machineCodeValue, activationToken) {
     return this.request('/license/verify', { licenseCode, machineCode: machineCodeValue, activationToken });
+  }
+
+  /**
+   * 额度消耗（QUOTA 产品，服务端记账）：每次功能调用扣减时上报，平台原子扣减 quota_used 并回本码余额。
+   * 把用量从本地 storage 上收到服务端，同一授权码跨设备/重装共享一份账，杜绝多倍消耗。
+   * @param {number} amount 本次消耗数量（正整数）
+   * @param {string} [requestId] 幂等键（强烈建议传，防网络重试重复扣减）；不传则本地生成一次性 nonce
+   * @returns {Promise<{ consumed, quotaAmount, quotaUsed, quotaRemaining }>} 均为本码口径；quotaRemaining 为服务端权威剩余，据此拦截
+   */
+  consume(licenseCode, machineCodeValue, activationToken, amount, requestId) {
+    return this.request('/license/quota/consume', {
+      licenseCode,
+      machineCode: machineCodeValue,
+      activationToken,
+      amount,
+      requestId: requestId || genRequestId(),
+    });
   }
 
   /** 解绑（换机）：通常需登录态，浏览器场景由个人中心调用 */

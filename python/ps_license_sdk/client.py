@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import json
 import time
+import uuid
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -107,6 +108,22 @@ class LicenseClient:
         return self.request(
             "/license/verify",
             {"licenseCode": license_code, "machineCode": machine_code_value or machine_code(), "activationToken": activation_token},
+        )
+
+    def consume(self, license_code: str, amount: int, machine_code_value: str = None, activation_token: str = "", request_id: str = None):
+        """额度消耗（QUOTA 产品，服务端记账）：每次功能调用扣减时上报，平台原子扣 quota_used 并回本码余额。
+        把用量从本地文件上收到服务端，同一授权码跨设备/重装共享一份账，杜绝多倍消耗。
+        request_id：幂等键（强烈建议传，防网络重试重复扣减）；不传则本地生成 uuid4。
+        返回 { consumed, quotaAmount, quotaUsed, quotaRemaining }（均为本码口径），quotaRemaining 为服务端权威剩余，据此拦截。"""
+        return self.request(
+            "/license/quota/consume",
+            {
+                "licenseCode": license_code,
+                "machineCode": machine_code_value or machine_code(),
+                "activationToken": activation_token,
+                "amount": amount,
+                "requestId": request_id or str(uuid.uuid4()),
+            },
         )
 
     def deactivate(self, license_code: str, machine_code_value: str = None):

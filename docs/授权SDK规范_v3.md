@@ -104,6 +104,7 @@ timestamp
 | --- | --- | --- | --- |
 | 激活 | `POST /license/activate` | 无 | `activate(licenseCode, machineCode)` |
 | 校验 | `POST /license/verify` | 无 | `verify(licenseCode, machineCode, activationToken)` |
+| 额度消耗（仅 QUOTA） | `POST /license/quota/consume` | 无（凭 activationToken） | `consume(licenseCode, machineCode, activationToken, amount, requestId)` |
 | 解绑 | `POST /license/deactivate` | 登录（浏览器场景） | `deactivate(licenseCode, machineCode)` |
 | 软件内发码 | `POST /license/software/generate` | HMAC 签名 | `generateForSoftware({...})` |
 | 软件内升级/续费 | `POST /license/software/upgrade` | HMAC 签名 | `upgradeForSoftware({...})` |
@@ -197,11 +198,11 @@ https://www.powersoftware.app/product/license/purchase?productUniqueCode={produc
 - **续费顺延**：未到期续购（平台购买页或软件内续购）时，新有效期自动在**原到期时间**基础上顺延（`base = max(now, 旧到期)`），不损失剩余时长；过期后续购从当前时间起算；跨版本升级同理，升级到永久版会清空 `expiryTime` 回归永久语义；
 - 客户端如需展示「按月/按年」标识，`verify` / `activate` 响应已返回 `billingPeriod` 字段，可直接取用（与购买页版本配置一致）。
 
-**按量额度（licensePricingModel = QUOTA）**：发布页可选「版本分层（`EDITION`，默认）」或「按量额度（`QUOTA`）」两种售卖模式。QUOTA 产品只有单一基本版，以**额度包**出售（如 9.9 元 20 次、20 元 100 次），此时 `billingPeriod` 语义为**额度有效期**；购买时本包 `quotaAmount` 固化到授权码（`license.quota_amount`），`activate` / `verify` 响应随带该字段（EDITION 产品、存量码与试用码恒为 `null`）。额度累加跟随产品「升级策略」：`SAME_CODE`（默认）下平台在同机复购时把新额度**累加到原码**、到期时间叠加顺延（`verify` 返回即当前总额度）；`NEW_CODE` 下每单发独立新码、旧码保持有效，由客户端对同机多张有效码的 `quotaAmount` 求和。QUOTA 强制不抵扣、不拦降级；消耗记账（每次调用扣 1、归零拦截、余额展示）全部在客户端本地实现，平台不记录用量。
+**按量额度（licensePricingModel = QUOTA）**：发布页可选「版本分层（`EDITION`，默认）」或「按量额度（`QUOTA`）」两种售卖模式。QUOTA 产品只有单一基本版，以**额度包**出售（如 9.9 元 20 次、20 元 100 次），此时 `billingPeriod` 语义为**额度有效期**；购买时本包 `quotaAmount` 固化到**该张**授权码（`license.quota_amount`），`activate` / `verify` 响应随带该字段（EDITION 产品、存量码与试用码恒为 `null`）。额度累加跟随产品「升级策略」：`SAME_CODE`（默认）下平台在同机复购时把新额度**累加到原码**、到期时间叠加顺延；`NEW_CODE` 下每单发独立新码、旧码保持有效，**每张码是一个独立钱包**，客户端按当前持有的码取 `quotaAmount` 即可（消耗也只扣当前码）。QUOTA 强制不抵扣、不拦降级，**也不准调版本升级接口**（`software/upgrade` / `developer/upgrade` 不碰额度，平台直接拒绝并返回 `quotaUpgradeUseAddQuota`）。`software/addQuota` 建议必传 `clientOrderId`，平台据此做订单级幂等。**用量记账（推荐服务端）**：平台已提供 `POST /license/quota/consume`（SDK 方法 `consume(...)`，与 `verify` 同族、凭 `activationToken`），每消耗一次上报扣减，服务端在授权码 `quota_used` 上原子有界扣减（`quota_used + amount <= quota_amount`），跨浏览器/跨笔记本/重装共享同一份账，响应回本码 `quotaUsed` / `quotaRemaining`（`max(0, quotaAmount - quotaUsed)`）作唯一可信余额，`consume` 只扣当前这张码、不动同机兄弟码（传 `requestId` 防重试重复扣）。本地仅缓存展示、不再作为拦截依据；试用额度（`trialCount`）本期仍走本地周期口径。
 
 ### 5.错误码（SDK 抛错统一携带 errorCode）
 
-`codeNotFound`、`revoked`、`expired`、`machineLimit`、`tooManyAttempts`、`signatureInvalid`、`apiSecretMissing`、`productNotEnabled`、`trialNotEnabled`、`trialAlreadyPurchased`、`machineCodeInvalid`、`orderAlreadyUsed`、`editionRequired`、`productNotFound`、`trialFirstRequired`、`alreadyOwned` 等；网络/超时错误统一为 `NETWORK_ERROR`。`trialAlreadyPurchased`：领取试用时该机器在产品下已存在非试用授权（已购买），平台不再发放试用授权码。
+`codeNotFound`、`revoked`、`expired`、`machineLimit`、`tooManyAttempts`、`signatureInvalid`、`apiSecretMissing`、`productNotEnabled`、`trialNotEnabled`、`trialAlreadyPurchased`、`machineCodeInvalid`、`orderAlreadyUsed`、`editionRequired`、`productNotFound`、`trialFirstRequired`、`alreadyOwned`、`quotaUpgradeUseAddQuota`、`quotaOrderProcessing`、`insufficientQuota`、`quotaConsumeProcessing` 等；网络/超时错误统一为 `NETWORK_ERROR`。`trialAlreadyPurchased`：领取试用时该机器在产品下已存在非试用授权（已购买），平台不再发放试用授权码。`insufficientQuota` / `quotaConsumeProcessing`：`consume` 返回，分别表示额度不足、同一 `requestId` 并发处理中。
 
 ## 6. 包结构
 
