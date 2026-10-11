@@ -307,24 +307,31 @@ export class LicenseClient {
     return json.content;
   }
 
-  /** 激活：授权码 + 机器码 → licenseCode + activationToken */
+  /**
+   * 激活：授权码 + 机器码 → licenseCode + activationToken
+   * 返回字段按产品计费模型分组（不适用的恒 null）：通用 {licenseCode, activationToken, status, edition, expiryTime, billingPeriod}；
+   * EDITION 专属 {softwareMajorVersion, trialDays, trialExpiryTime, licenseDeductionEnabled}；QUOTA 专属 {quotaAmount, quotaUsed, quotaRemaining, quotaNextExpiry, trialCount, trialUsed, trialRemaining}
+   */
   activate(licenseCode, machineCodeValue) {
     return this.request('/license/activate', { licenseCode, machineCode: machineCodeValue });
   }
 
-  /** 校验：有效返回 { valid, edition, expiryTime } */
+  /**
+   * 校验：有效返回 { valid, edition, expiryTime }
+   * 字段×模型：EDITION 看 edition/expiryTime/billingPeriod(订阅周期)；QUOTA 看 quotaRemaining(额度门禁)/quotaNextExpiry(额度有效期)，且码不因额度耗尽 expired
+   */
   verify(licenseCode, machineCodeValue, activationToken) {
     return this.request('/license/verify', { licenseCode, machineCode: machineCodeValue, activationToken });
   }
 
   /**
-   * 额度消耗（QUOTA 产品，服务端记账）：每次功能调用扣减时上报，平台在服务端 license_usage 按票扣减并回余额。
+   * 额度消耗（仅 QUOTA 产品，服务端记账；EDITION 产品不调用）：每次功能调用扣减时上报，平台在服务端 license_usage 按票扣减并回余额。
    * 把用量从本地 storage 上收到服务端，同一授权码跨设备/重装共享一份账，杜绝多倍消耗。
    * 付费额度按票各自有效期、最早到期先扣(FIFO)；试用额度按服务端周期桶记账；remaining=Σ有效票；码不因额度耗尽而 expired。
    * @param {number} amount 本次消耗数量（正整数）
    * @param {string} [requestId] 幂等键（强烈建议传，防网络重试重复扣减）；不传则本地生成一次性 nonce
    * @param {'quota'|'trial'} [kind] 消耗类型，默认 'quota'（付费额度票）；'trial' 扣试用周期桶
-   * @returns {Promise<{ consumed, kind, quotaUsed, quotaRemaining, trialUsed, trialRemaining }>} 服务端按票聚合的双钱包余额，据此拦截
+   * @returns {Promise<{ consumed, kind, quotaUsed, quotaRemaining, quotaNextExpiry, trialUsed, trialRemaining }>} 服务端按票聚合的双钱包余额 + 额度有效期，据此拦截
    */
   consume(licenseCode, machineCodeValue, activationToken, amount, requestId, kind) {
     return this.request('/license/quota/consume', {

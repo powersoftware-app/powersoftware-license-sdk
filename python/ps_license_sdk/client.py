@@ -102,9 +102,15 @@ class LicenseClient:
         return data.get("content")
 
     def activate(self, license_code: str, machine_code_value: str = None):
+        """激活：授权码 + 机器码 → licenseCode + activationToken。
+        返回字段按计费模型分组（不适用的恒 None）：通用 {license_code, activation_token, status, edition, expiry_time, billing_period}；
+        EDITION 专属 {software_major_version, trial_days, trial_expiry_time, license_deduction_enabled}；
+        QUOTA 专属 {quota_amount, quota_used, quota_remaining, quota_next_expiry, trial_count, trial_used, trial_remaining}。"""
         return self.request("/license/activate", {"licenseCode": license_code, "machineCode": machine_code_value or machine_code()})
 
     def verify(self, license_code: str, machine_code_value: str = None, activation_token: str = ""):
+        """校验：有效返回 { valid, edition, expiry_time }。
+        字段×模型：EDITION 看 edition/expiry_time/billing_period（订阅周期）；QUOTA 看 quota_remaining（额度门禁）/quota_next_expiry（额度有效期），且码不因额度耗尽 expired。"""
         return self.request(
             "/license/verify",
             {"licenseCode": license_code, "machineCode": machine_code_value or machine_code(), "activationToken": activation_token},
@@ -116,7 +122,7 @@ class LicenseClient:
         付费额度按票各自有效期、最早到期先扣(FIFO)；试用额度按服务端周期桶记账；remaining=Σ有效票；码不因额度耗尽而 expired。
         request_id：幂等键（强烈建议传，防网络重试重复扣减）；不传则本地生成 uuid4。
         kind：'quota'（默认，付费额度票）/ 'trial'（试用周期桶）。
-        返回 { consumed, kind, quotaUsed, quotaRemaining, trialUsed, trialRemaining }（服务端按票聚合的双钱包余额），据此拦截。"""
+        返回 { consumed, kind, quotaUsed, quotaRemaining, quotaNextExpiry, trialUsed, trialRemaining }（服务端按票聚合的双钱包余额 + 额度有效期），据此拦截。"""
         return self.request(
             "/license/quota/consume",
             {

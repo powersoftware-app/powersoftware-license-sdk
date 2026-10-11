@@ -177,6 +177,32 @@ Editions can be configured with one of three billing periods; the purchase page 
 
 **Usage-based quota (licensePricingModel = QUOTA)**: on the publish page a product can be sold by **edition tiers** (`EDITION`, default) or by **usage quota** (`QUOTA`). A QUOTA product has a single Basic edition and sells **quota packs** (e.g. $9.9 for 20 uses, $20 for 100 uses); here `billingPeriod` means the **quota's valid window**. At purchase the pack's `quotaAmount` is frozen onto the license code (`license.quota_amount`) and returned by `activate` / `verify` (always `null` for EDITION products, legacy codes, and trial codes). Accumulation follows the product's **upgrade strategy**: under `SAME_CODE` (default) the platform **adds the new quota onto the existing code** when repurchasing on the same machine and stacks the expiry onto the latest end (`verify` already returns the current total); under `NEW_CODE` each order gets an independent new code while old codes stay valid — **each code is its own wallet**, and the client reads the `quotaAmount` of the code it currently holds (consumption is charged only against that code). QUOTA forces no-deduction / no-downgrade-block, **and forbids the upgrade endpoints** (`software/upgrade` / `developer/upgrade` don't touch quota; the platform rejects them with `quotaUpgradeUseAddQuota`). `software/addQuota` should always send `clientOrderId` for order-level idempotency. **Usage accounting (server-side, recommended)**: the platform now offers `POST /license/quota/consume` (SDK `consume(...)`, same family as `verify`, authenticated by `activationToken`). Report a deduction per billable call; the server performs an **atomic bounded decrement** on the code's `quota_used` (`quota_used + amount <= quota_amount`), shares a single balance across browsers / laptops / reinstalls (keyed on `licenseCode`), and returns the code's own `quotaUsed` / `quotaRemaining` (`max(0, quotaAmount - quotaUsed)`) as the only trusted balance; `consume` charges only the current code and never its machine siblings (pass `requestId` to make retries idempotent). Local counts become a display cache, no longer the gating basis; the free trial quota (`trialCount`) still follows the local period rule for now.
 
+### 5.2 Field × pricing-model mapping (EDITION vs QUOTA)
+
+Each product picks one pricing model: `licensePricingModel = EDITION` (edition tiers, default) or `QUOTA` (usage-based quota). Not every field is meaningful for both models — read them per the table below (fields not applicable to a model are always `null`; render `-` defensively):
+
+| Field | Model | Notes |
+| --- | --- | --- |
+| `licenseCode` / `machineCode` / `activationToken` / `status` | shared | license code / machine code / activation token / status |
+| `productUniqueCode` / `source` | shared | product code / issuing source |
+| `maxMachines` / `activatedMachines` | shared | machine-bind limit / currently bound |
+| `edition` | shared (different meaning) | EDITION: tier (`BASIC`/`PRO`/`ULTIMATE`); QUOTA: single basic edition (may be `null`) |
+| `softwareMajorVersion` | EDITION | major version, used for tiered feature gating |
+| `trialDays` / `trialExpiryTime` | EDITION | day-based trial and grace snapshot after trial-to-purchase |
+| `licenseDeductionEnabled` | EDITION | upgrade price-deduction (already-owned) switch |
+| `billingPeriod` | **dual meaning** | EDITION: subscription period, drives code-level `expiryTime` & renewal extension; QUOTA: **valid period of each quota lot**, computes `expires_at` per lot. The two outputs never affect each other |
+| `quotaAmount` | QUOTA | total paid quota shown on the code (= Σ issued-lot `cap`); **always `null` for EDITION** |
+| `quotaUsed` / `quotaRemaining` | QUOTA | server-side trusted used / remaining, aggregated over "not-expired lots with balance" |
+| `quotaNextExpiry` | QUOTA | quota validity: earliest `expires_at` among not-expired lots with balance; `null` when a permanent lot with balance exists (or no lot has balance) — frontend uses `quotaRemaining` to show "permanent" / "exhausted" |
+| `trialCount` / `trialCountPeriod` / `trialPeriodKey` | QUOTA | per-use trial quota / reset period / current period-bucket key; **always `null` for EDITION** (EDITION trial uses the day-based `trialDays`) |
+| `trialUsed` / `trialRemaining` | QUOTA | server-side used / remaining of the current trial period bucket |
+| `consume(licenseCode, machineCode, activationToken, amount, requestId, kind)` | QUOTA | quota consumption endpoint, `kind: 'quota' | 'trial'`; never called for EDITION |
+
+Key notes:
+- **Trial dimensions are mutually exclusive between models**: EDITION uses day-based trials (`trialDays`/`trialExpiryTime`); QUOTA uses per-use trial buckets (`trialCount`/`trialPeriodKey`). `quotaAmount` and `trialCount` are always `null` for EDITION codes.
+- **`billingPeriod` has two meanings**: whether it reads as a subscription period (EDITION) or a per-lot validity period (QUOTA) depends on the product's `licensePricingModel` — do not mix them up.
+- **A code never becomes `expired` due to quota**: QUOTA quota only affects `quotaRemaining` (=0 guides a repurchase); activation state and spendable balance are decoupled.
+
 ## 6. Error codes
 
 `codeNotFound`, `revoked`, `expired`, `machineLimit`, `tooManyAttempts`, `signatureInvalid`, `apiSecretMissing`, `productNotEnabled`, `trialNotEnabled`, `trialAlreadyPurchased`, `machineCodeInvalid`, `orderAlreadyUsed`, `editionRequired`, `productNotFound`, `trialFirstRequired`, `alreadyOwned`, `quotaUpgradeUseAddQuota`, `quotaOrderProcessing`, `insufficientQuota`, `quotaConsumeProcessing`; network/timeout errors are `NETWORK_ERROR`. `trialAlreadyPurchased`: when claiming a trial, the machine already holds a non-trial license for the product (already purchased); the platform will not issue another trial license. `insufficientQuota` / `quotaConsumeProcessing`: returned by `consume`, meaning an exhausted server balance and a concurrent same-`requestId` request in progress, respectively.

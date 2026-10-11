@@ -200,6 +200,32 @@ https://www.powersoftware.app/product/license/purchase?productUniqueCode={produc
 
 **按量额度（licensePricingModel = QUOTA）**：发布页可选「版本分层（`EDITION`，默认）」或「按量额度（`QUOTA`）」两种售卖模式。QUOTA 产品只有单一基本版，以**额度包**出售（如 9.9 元 20 次、20 元 100 次），此时 `billingPeriod` 语义为**额度有效期**；购买时本包 `quotaAmount` 固化到**该张**授权码（`license.quota_amount`），`activate` / `verify` 响应随带该字段（EDITION 产品、存量码与试用码恒为 `null`）。额度累加跟随产品「升级策略」：`SAME_CODE`（默认）下平台在同机复购时把新额度**累加到原码**、到期时间叠加顺延；`NEW_CODE` 下每单发独立新码、旧码保持有效，**每张码是一个独立钱包**，客户端按当前持有的码取 `quotaAmount` 即可（消耗也只扣当前码）。QUOTA 强制不抵扣、不拦降级，**也不准调版本升级接口**（`software/upgrade` / `developer/upgrade` 不碰额度，平台直接拒绝并返回 `quotaUpgradeUseAddQuota`）。`software/addQuota` 建议必传 `clientOrderId`，平台据此做订单级幂等。**用量记账（推荐服务端）**：平台已提供 `POST /license/quota/consume`（SDK 方法 `consume(...)`，与 `verify` 同族、凭 `activationToken`），每消耗一次上报扣减，服务端在授权码 `quota_used` 上原子有界扣减（`quota_used + amount <= quota_amount`），跨浏览器/跨笔记本/重装共享同一份账，响应回本码 `quotaUsed` / `quotaRemaining`（`max(0, quotaAmount - quotaUsed)`）作唯一可信余额，`consume` 只扣当前这张码、不动同机兄弟码（传 `requestId` 防重试重复扣）。本地仅缓存展示、不再作为拦截依据；试用额度（`trialCount`）本期仍走本地周期口径。
 
+### 5.2 字段与计费模型对照表（EDITION 版本分层 / QUOTA 按量额度）
+
+平台每个产品二选一计费模型：`licensePricingModel = EDITION`（版本分层，默认）或 `QUOTA`（按量额度）。字段并非对两个模型都有意义，按下表取用（不涉及的字段恒为 `null`，客户端应容错显示 `-`）：
+
+| 字段 | 所属模型 | 说明 |
+| --- | --- | --- |
+| `licenseCode` / `machineCode` / `activationToken` / `status` | 通用 | 授权码 / 机器码 / 激活凭证 / 状态（两模型都用） |
+| `productUniqueCode` / `source` | 通用 | 产品编码 / 发码来源 |
+| `maxMachines` / `activatedMachines` | 通用 | 可绑机器数上限 / 已绑机器数 |
+| `edition` | 通用（语义不同） | EDITION 为档位（`BASIC`/`PRO`/`ULTIMATE`）；QUOTA 恒单一基本版（可为 `null`） |
+| `softwareMajorVersion` | EDITION | 大版本，用于分级功能门禁 |
+| `trialDays` / `trialExpiryTime` | EDITION | 按天试用与试用转购买的宽限快照 |
+| `licenseDeductionEnabled` | EDITION | 升级补差价（已购抵扣）开关 |
+| `billingPeriod` | **双语义** | EDITION→订阅周期，驱动码级 `expiryTime` 与续费顺延；QUOTA→**每张额度票的有效期周期**，逐票算 `expires_at`。二者产物互不影响 |
+| `quotaAmount` | QUOTA | 本码展示的付费额度总额（= Σ 已发票 `cap`）；**EDITION 恒 `null`** |
+| `quotaUsed` / `quotaRemaining` | QUOTA | 服务端按「未过期且有剩的付费票」聚合的可信已用 / 剩余 |
+| `quotaNextExpiry` | QUOTA | 额度有效期：未过期且有剩的付费票中最早到期的 `expires_at`；存在永久有剩票（或无有剩票）时为 `null`（前端按 `quotaRemaining` 判「永久」/「已用尽」） |
+| `trialCount` / `trialCountPeriod` / `trialPeriodKey` | QUOTA | 按次试用的额度 / 重置周期 / 当前周期桶 key；**EDITION 恒 `null`**（EDITION 试用走 `trialDays` 按天口径） |
+| `trialUsed` / `trialRemaining` | QUOTA | 服务端当前试用周期桶的已用 / 剩余 |
+| `consume(licenseCode, machineCode, activationToken, amount, requestId, kind)` | QUOTA | 额度消耗接口，`kind: 'quota' | 'trial'`；EDITION 不调用 |
+
+关键提示：
+- **两模型的试用维度互斥**：EDITION 用按天试用（`trialDays`/`trialExpiryTime`），QUOTA 用按次试用周期桶（`trialCount`/`trialPeriodKey`）。`quotaAmount`、`trialCount` 对 EDITION 码恒 `null`。
+- **`billingPeriod` 一词两义**：读作订阅周期（EDITION）还是票有效期（QUOTA），取决于产品的 `licensePricingModel`，勿混用。
+- **授权码不因额度耗尽/过期而 `expired`**：QUOTA 码额度只影响 `quotaRemaining`（=0 时引导复购），激活态与可花余额解耦。
+
 ### 5.错误码（SDK 抛错统一携带 errorCode）
 
 `codeNotFound`、`revoked`、`expired`、`machineLimit`、`tooManyAttempts`、`signatureInvalid`、`apiSecretMissing`、`productNotEnabled`、`trialNotEnabled`、`trialAlreadyPurchased`、`machineCodeInvalid`、`orderAlreadyUsed`、`editionRequired`、`productNotFound`、`trialFirstRequired`、`alreadyOwned`、`quotaUpgradeUseAddQuota`、`quotaOrderProcessing`、`insufficientQuota`、`quotaConsumeProcessing` 等；网络/超时错误统一为 `NETWORK_ERROR`。`trialAlreadyPurchased`：领取试用时该机器在产品下已存在非试用授权（已购买），平台不再发放试用授权码。`insufficientQuota` / `quotaConsumeProcessing`：`consume` 返回，分别表示额度不足、同一 `requestId` 并发处理中。
