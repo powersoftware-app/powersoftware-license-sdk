@@ -148,9 +148,9 @@ timestamp
 | 取值 | 含义 |
 | --- | --- |
 | `SAME_CODE` | 原码不变：升级/续费后授权码不变 |
-| `NEW_CODE` | 原码换绑：升级/续费吊销旧码、签发新码 |
+| `NEW_CODE` | 原码换绑：升级/续费吊销旧码、签发新码（**已停用**：发布/编辑页不再提供该选项，平台写路径会把传入的 NEW_CODE 归一为 `SAME_CODE`；仅存量产品保留行为） |
 
-客户端据此决定是否展示「绑定授权码」输入框：`SAME_CODE` 下码不变，无需引导用户重新输入；`NEW_CODE` 下升级/续费会签发新码，须以 `software/upgrade` 返回的新 `licenseCode` 覆盖本地存储。产品未配置时返回 `SAME_CODE`；`verify` 结果缓存 60 秒，策略变更最长 60 秒生效。
+客户端据此决定是否展示「绑定授权码」输入框：`SAME_CODE` 下码不变，无需引导用户重新输入；`NEW_CODE` 下升级/续费会签发新码，须以 `software/upgrade` 返回的新 `licenseCode` 覆盖本地存储。产品未配置时返回 `SAME_CODE`；`verify` 结果缓存 60 秒，策略变更最长 60 秒生效。**升级策略已于 2026-10 淡出**：新发布/编辑的产品统一为 `SAME_CODE`，但 `licenseUpgradeMode` 字段仍会返回（供存量 `NEW_CODE` 产品对接方继续兼容），客户端无需改动。
 
 ### 3.3 试用额度周期（trialCountPeriod / trialPeriodKey）
 

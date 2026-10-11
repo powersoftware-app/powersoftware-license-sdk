@@ -127,9 +127,9 @@ Base: `https://www.powersoftware.app/frontApi` (overridable).
 | Value | Meaning |
 | --- | --- |
 | `SAME_CODE` | The license code stays the same after upgrade/renewal |
-| `NEW_CODE` | Upgrade/renewal revokes the old code and issues a new one |
+| `NEW_CODE` | Upgrade/renewal revokes the old code and issues a new one (**deprecated**: no longer offered on the publish/edit page; the platform's write path normalizes an incoming `NEW_CODE` to `SAME_CODE`; only legacy products keep this behavior) |
 
-Clients use it to decide whether to show a "bind license code" input: with `SAME_CODE` the code never changes, so do not prompt users to re-enter it; with `NEW_CODE` a new code is issued on upgrade/renewal — the `licenseCode` returned by `software/upgrade` must overwrite local storage. Defaults to `SAME_CODE` when the product has no setting; `verify` results are cached for 60s, so policy changes take effect within 60s.
+Clients use it to decide whether to show a "bind license code" input: with `SAME_CODE` the code never changes, so do not prompt users to re-enter it; with `NEW_CODE` a new code is issued on upgrade/renewal — the `licenseCode` returned by `software/upgrade` must overwrite local storage. Defaults to `SAME_CODE` when the product has no setting; `verify` results are cached for 60s, so policy changes take effect within 60s. **The upgrade policy was faded out in 2026-10**: newly published/edited products are uniformly `SAME_CODE`, but the `licenseUpgradeMode` field is still returned (so integrators of legacy `NEW_CODE` products stay compatible); no client change is required.
 
 ### 3.2 Trial-quota period (trialCountPeriod / trialPeriodKey)
 
