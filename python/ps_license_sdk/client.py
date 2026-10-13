@@ -116,8 +116,9 @@ class LicenseClient:
             {"licenseCode": license_code, "machineCode": machine_code_value or machine_code(), "activationToken": activation_token},
         )
 
-    def consume(self, license_code: str, amount: int, machine_code_value: str = None, activation_token: str = "", request_id: str = None, kind: str = "quota"):
+    def consume(self, license_code: str, amount: float, machine_code_value: str = None, activation_token: str = "", request_id: str = None, kind: str = "quota"):
         """额度消耗（QUOTA 产品，服务端记账）：每次功能调用扣减时上报，平台在服务端 license_usage 按票扣减并回余额。
+        amount 为正数即可，支持小数（如按 token/时长计费可传 0.5）；非正/无穷/NaN 会被服务端拒绝。
         把用量从本地文件上收到服务端，同一授权码跨设备/重装共享一份账，杜绝多倍消耗。
         付费额度按票各自有效期、最早到期先扣(FIFO)；试用额度按服务端周期桶记账；remaining=Σ有效票；码不因额度耗尽而 expired。
         request_id：幂等键（强烈建议传，防网络重试重复扣减）；不传则本地生成 uuid4。
@@ -185,8 +186,8 @@ class LicenseClient:
             signed=True,
         )
 
-    def add_quota_for_software(self, license_code: str, add_amount: int, quota_type: str = "quota", edition: str = None, client_order_id: str = None):
-        """非平台代收：给 QUOTA 额度码累加额度（走 addQuota 专用签名）。
+    def add_quota_for_software(self, license_code: str, add_amount: float, quota_type: str = "quota", edition: str = None, client_order_id: str = None):
+        """非平台代收：给 QUOTA 额度码累加额度（走 addQuota 专用签名）。add_amount 为正数，支持小数。
         quota_type: 'trial' 累加试用额度 trialCount（不改版本）| 'quota'（默认）累加付费额度 quotaAmount。
         edition（仅 quota）：加额度同时把码转到该付费版本；client_order_id：审计/追溯（平台不做订单级幂等，重复发放由调用方去重）。"""
         if not self.product_unique_code:

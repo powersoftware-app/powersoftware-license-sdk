@@ -94,11 +94,11 @@ public class LicenseClient {
     }
 
     /**
-     * 非平台代收：给 QUOTA 额度码累加额度（HMAC 签名，走 addQuota 专用签名串）。
+     * 非平台代收：给 QUOTA 额度码累加额度（HMAC 签名，走 addQuota 专用签名串）。addAmount 为正数，支持小数。
      * quotaType: "trial" 累加试用额度 trialCount（不改版本）| "quota"（默认）累加付费额度 quotaAmount。
      * edition（仅 quota）：加额度同时把码转到该付费版本；clientOrderId：审计/追溯（平台不做订单级幂等，重复发放由调用方去重）。
      */
-    public Map<String, Object> addQuotaForSoftware(String licenseCode, int addAmount, String quotaType, String edition, String clientOrderId) throws Exception {
+    public Map<String, Object> addQuotaForSoftware(String licenseCode, double addAmount, String quotaType, String edition, String clientOrderId) throws Exception {
         requireProductCode();
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("productUniqueCode", productUniqueCode);
@@ -112,8 +112,8 @@ public class LicenseClient {
         return request("/license/software/addQuota", body, false);
     }
 
-    /** 重载：仅指定额度类型（trial/quota），无 edition/订单号 */
-    public Map<String, Object> addQuotaForSoftware(String licenseCode, int addAmount, String quotaType) throws Exception {
+    /** 重载：仅指定额度类型（trial/quota），无 edition/订单号；addAmount 为正数，支持小数 */
+    public Map<String, Object> addQuotaForSoftware(String licenseCode, double addAmount, String quotaType) throws Exception {
         return addQuotaForSoftware(licenseCode, addAmount, quotaType, null, null);
     }
 
