@@ -1,6 +1,6 @@
 # PowerSoftware License SDK Specification (v3)
 
-This document defines the behavior that must be identical across the Node.js, Python and Java SDKs: machine code, signing, endpoints, caching and purchase-page redirect.
+This document defines the behavior that must be identical across the Node.js, Python and Java SDKs: machine code, device id, signing, endpoints, caching and purchase-page redirect.
 
 ## 1. Machine code (cross-language consistent)
 
@@ -76,6 +76,21 @@ machineCode = 'M' + base64url( sha256( fingerprint ) ).slice(0, 32)
 
 `machineCode` is at least 8 chars, globally unique, and cached in-process by the SDK.
 
+### Device id algorithm (`x-device-id`, cross-language)
+
+The device id is a trial anti-abuse gate signal, complementary to the machine code: `machineCode` is idempotent per "product + machine" (it describes *this installation's machine*), while the device id adds a "this physical device" dedup dimension (telling same-device reinstalls apart from many devices with one install each). **No hardware collection is involved** — simpler than the machine code:
+
+```text
+deviceId = 'DID-' + uuid        // generated once then persisted; must match ^DID-[A-Za-z0-9_-]{6,64}$
+```
+
+| Form | Generation | Persistence | Notes |
+| --- | --- | --- | --- |
+| Browser extension (`webextension.js`) | `deviceId()`: `DID-` + `crypto.randomUUID()` | `chrome.storage.local` key `psDeviceId` (**never sync**, so it is not replicated to other machines and falsely trips the gate); optional hardening: a first-party `ps_did` cookie on the API host (survives uninstall; needs `cookies` permission + `host_permissions`) | Extensions cannot read hardware fingerprints, so the device id is a browser-bound second dimension, distinct from the Install ID (`EXT-`, synced with the account) |
+| Desktop (`index.js`) | reuse `machineCode`, or persist a local `DID-<uuid>` | file next to `.machine-id` | The desktop machine code is already a reinstall-stable hardware fingerprint, so a device id adds little value and may be omitted; the desktop SDK's `claimTrial` does not take this argument yet (plugin adapter only, extend on demand) |
+
+`claimTrial` sends a valid `deviceId` (matching the regex above) as the `x-device-id` request header; absent or malformed counts as not reported and the server falls back to the subnet dimension (the `/24` prefix normalized from the CDN-injected `CF-Connecting-IP`). Concrete review thresholds are deliberately not disclosed in public docs, to prevent gaming them.
+
 ## 2. Signing (software/generate, software/upgrade)
 
 Payload joined by `\n` in fixed order (empty string for missing `edition`/`licenseCode`/`billingPeriod`, `0` for `expiryDays`; `billingPeriod` normalized to trim + UPPERCASE):
@@ -107,7 +122,7 @@ Base: `https://www.powersoftware.app/frontApi` (overridable).
 | `/license/deactivate` | POST | login | `deactivate` |
 | `/license/software/generate` | POST | HMAC | `generateForSoftware` |
 | `/license/software/upgrade` | POST | HMAC | `upgradeForSoftware` |
-| `/license/trial/claim` | POST | none | `claimTrial` |
+| `/license/trial/claim` | POST | none | `claimTrial` (the `webextension.js` adapter additionally takes an optional 2nd arg `deviceId`, sent as the `x-device-id` header — see §1 Device id algorithm) |
 
 `generateForSoftware` / `upgradeForSoftware` add `timestamp` + `signature` automatically.
 
@@ -207,4 +222,4 @@ Key notes:
 
 ## 6. Error codes
 
-`codeNotFound`, `revoked`, `expired`, `machineLimit`, `tooManyAttempts`, `signatureInvalid`, `apiSecretMissing`, `productNotEnabled`, `trialNotEnabled`, `trialAlreadyPurchased`, `machineCodeInvalid`, `orderAlreadyUsed`, `editionRequired`, `productNotFound`, `trialFirstRequired`, `alreadyOwned`, `quotaUpgradeUseAddQuota`, `quotaOrderProcessing`, `insufficientQuota`, `quotaConsumeProcessing`; network/timeout errors are `NETWORK_ERROR`. `trialAlreadyPurchased`: when claiming a trial, the machine already holds a non-trial license for the product (already purchased); the platform will not issue another trial license. `insufficientQuota` / `quotaConsumeProcessing`: returned by `consume`, meaning an exhausted server balance and a concurrent same-`requestId` request in progress, respectively.
+`codeNotFound`, `revoked`, `expired`, `machineLimit`, `tooManyAttempts`, `signatureInvalid`, `apiSecretMissing`, `productNotEnabled`, `trialNotEnabled`, `trialAlreadyPurchased`, `machineCodeInvalid`, `orderAlreadyUsed`, `editionRequired`, `productNotFound`, `trialFirstRequired`, `alreadyOwned`, `quotaUpgradeUseAddQuota`, `quotaOrderProcessing`, `insufficientQuota`, `quotaConsumeProcessing`; network/timeout errors are `NETWORK_ERROR`. `trialAlreadyPurchased`: when claiming a trial, the machine already holds a non-trial license for the product (already purchased), or the device anti-abuse review flagged the claim as a re-claim; the platform will not issue another trial license. `insufficientQuota` / `quotaConsumeProcessing`: returned by `consume`, meaning an exhausted server balance and a concurrent same-`requestId` request in progress, respectively.

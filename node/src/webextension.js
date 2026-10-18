@@ -22,6 +22,9 @@ const VERIFY_CACHE_TTL_MS = 60 * 1000;
 /** 插件 Install ID 前缀（与 ps-common MACHINE_CODE_PLUGIN_PREFIX 约定一致，服务端据此推导 machine_type） */
 const EXT_PREFIX = 'EXT-';
 
+/** 设备标识前缀（与服务端试用闸门 deviceId 白名单正则 ^DID-[A-Za-z0-9_-]{6,64}$ 一致） */
+const DID_PREFIX = 'DID-';
+
 // ---- Install ID ----
 
 /** 判定 WebExtension storage 可用（适配 Chrome 与 Firefox 命名空间） */
@@ -85,6 +88,39 @@ export async function machineCode() {
   write(storage.sync);
 
   return id;
+}
+
+// ---- 设备标识（试用防刷闸门信号）----
+
+/**
+ * 生成并持久化设备标识（异步），供 claimTrial 以 x-device-id 请求头上报。
+ * 服务端据此区分「同机重装」与「多机各一装」做试用防刷审查：machineCode 按「产品+机器」幂等，
+ * 设备标识再补一层跨重装的去重维度。缺失时不报错，服务端退回按网段维度判定。
+ * 持久化：仅存 storage.local——设备标识须绑物理浏览器，进 sync 会复制到其它设备、
+ * 把「多机领取」记到同一设备名下反而误触防刷。storage 不可用（非插件环境）时抛错。
+ * 若要活过卸载（与官方插件 ps_did 第一方 cookie 同效），开发者可自行在 API 域设 cookie（需 host_permissions），见接入指南。
+ */
+export async function deviceId() {
+  const storage = getStorageArea();
+  if (!storage) {
+    throw new Error('WebExtension storage unavailable: deviceId() requires an extension environment');
+  }
+  const id = await new Promise((resolve) => {
+    try {
+      const r = storage.local.get(['psDeviceId']);
+      if (r && typeof r.then === 'function') r.then((v) => resolve(v?.psDeviceId ?? null), () => resolve(null));
+      else storage.local.get(['psDeviceId'], (v) => resolve(v?.psDeviceId ?? null));
+    } catch {
+      resolve(null);
+    }
+  });
+  if (id && String(id).startsWith(DID_PREFIX)) return id;
+  const fresh = DID_PREFIX + randomUuid();
+  try {
+    const w = storage.local.set({ psDeviceId: fresh });
+    if (w && typeof w.then === 'function') w.catch(() => { /* 静默，下次重试 */ });
+  } catch { /* 不可写时静默，仍返回本次生成的 id */ }
+  return fresh;
 }
 
 // ---- HMAC 签名（Web Crypto 版，与 index.js sign 字段序一致） ----
@@ -194,10 +230,17 @@ export class LicenseClient {
     return this.request('/license/deactivate', { licenseCode, machineCode: machineCodeValue });
   }
 
-  /** 先用后付：领取试用授权（产品须 TRIAL_FIRST） */
-  claimTrial(machineCodeValue) {
+  /**
+   * 先用后付：领取试用授权（产品须 TRIAL_FIRST）
+   * 可选第二参 deviceIdValue（由 deviceId() 生成，格式 DID-<uuid>）以 x-device-id 请求头上报，
+   * 服务端试用防刷设备闸门据此跨重装去重；缺省或格式不符 ^DID-[A-Za-z0-9_-]{6,64}$ 视同未上报（仍按网段维度判定）。
+   */
+  claimTrial(machineCodeValue, deviceIdValue) {
     if (!this.productUniqueCode) throw new Error('productUniqueCode required');
-    return this.request('/license/trial/claim', { productUniqueCode: this.productUniqueCode, machineCode: machineCodeValue });
+    const did = typeof deviceIdValue === 'string' && /^DID-[A-Za-z0-9_-]{6,64}$/.test(deviceIdValue.trim()) ? deviceIdValue.trim() : undefined;
+    return this.request('/license/trial/claim',
+      { productUniqueCode: this.productUniqueCode, machineCode: machineCodeValue },
+      { headers: did ? { 'x-device-id': did } : {} });
   }
 
   /** 检查版本更新：返回 { hasUpdate, latestVersion } */
@@ -252,4 +295,4 @@ export class LicenseClient {
   }
 }
 
-export default { machineCode, sign, LicenseClient };
+export default { machineCode, deviceId, sign, LicenseClient };

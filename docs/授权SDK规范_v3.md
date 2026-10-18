@@ -1,7 +1,7 @@
 # 授权 SDK 规范（v3）
 
 > 依据：`ps-help/v3/doc/售卖方式与授权购买链路_v3.md`、帮助中心 LICENSE_API_DOC（v3）。
-> 目标：Node / Python / Java 三语言 SDK 行为一致（机器码、签名、接口、缓存、错误码、购买页跳转）。
+> 目标：Node / Python / Java 三语言 SDK 行为一致（机器码、设备标识、签名、接口、缓存、错误码、购买页跳转）。
 
 ## 1. 机器码算法（跨语言一致）
 
@@ -77,6 +77,21 @@ machineCode = 'M' + base64url( sha256( fingerprint ) ).slice(0, 32)
 
 `machineCode` 至少 8 位，全平台唯一，且 SDK 内部缓存（进程内）。
 
+### 设备标识算法（`x-device-id`，跨语言）
+
+设备标识是试用防刷闸门信号，与机器码互补：机器码按「产品+机器」幂等（描述“这台机器”），设备标识再补一层“这台物理设备”的去重维度（区分同机重装 vs 多机各一装）。**不依赖硬件采集**，比机器码简单：
+
+```text
+deviceId = 'DID-' + uuid        // 首次生成后持久化复用，须匹配 ^DID-[A-Za-z0-9_-]{6,64}$
+```
+
+| 形态 | 生成 | 持久化 | 说明 |
+| --- | --- | --- | --- |
+| 浏览器插件（`webextension.js`） | `deviceId()`：`DID-` + `crypto.randomUUID()` | `chrome.storage.local` 键 `psDeviceId`（**不写 sync**，避免跨设备复制误触防刷）；可选加强：API 域第一方 cookie `ps_did`（活过卸载，需 `cookies` 权限 + `host_permissions`） | 插件拿不到硬件指纹， deviceId 是与 Install ID（`EXT-`，走 sync 跟账号）不同的、绑物理浏览器的第二维 |
+| 桌面端（`index.js`） | 直接复用 `machineCode`，或本地持久化 `DID-<uuid>` | `.machine-id` 同目录的文件 | 桌面机器码本身已是跨重装稳定的硬件指纹，deviceId 收益低，可缺省；桌面 SDK 的 `claimTrial` 暂未接入该参（仅插件适配层支持，后续按需扩展） |
+
+`claimTrial` 将合法 `deviceId`（命中上述正则）作为 `x-device-id` 请求头上报；缺省或格式不符视同未上报，服务端退回按网段维度（CDN 注入的 `CF-Connecting-IP` 归一 `/24`）判定。具体审查阈值不在本规范/公开文档披露，以防止绕过。
+
 ## 2. 签名规则（software/generate、software/upgrade 必须）
 
 签名串按固定顺序、以 `\n` 换行分隔（缺省填空值：`edition` 空串、`expiryDays` 0、`licenseCode` 空串、`billingPeriod` 空串且归一为 trim + 大写）：
@@ -108,7 +123,7 @@ timestamp
 | 解绑 | `POST /license/deactivate` | 登录（浏览器场景） | `deactivate(licenseCode, machineCode)` |
 | 软件内发码 | `POST /license/software/generate` | HMAC 签名 | `generateForSoftware({...})` |
 | 软件内升级/续费 | `POST /license/software/upgrade` | HMAC 签名 | `upgradeForSoftware({...})` |
-| 领取试用 | `POST /license/trial/claim` | 无 | `claimTrial(machineCode)` |
+| 领取试用 | `POST /license/trial/claim` | 无 | `claimTrial(machineCode)`（插件适配层 `webextension.js` 另支持可选第二参 `deviceId`，作 `x-device-id` 头上报，见 §1 设备标识算法） |
 | 检查版本更新 | `POST /product/updateCheck` | 无 | `checkUpdate(currentVersion)` |
 
 `generateForSoftware` / `upgradeForSoftware` 自动补 `timestamp` + `signature`；`claimTrial` 需产品为先用后付。
@@ -241,4 +256,4 @@ ps-sdk/
   java/     com.powersoftware:sdk（Java 8+，JDK 自带 HTTP/加密）
 ```
 
-三个包均提供：`machineCode()`、`sign()`、`LicenseClient`（上述 6 方法 + `verifyCached` + `purchaseUrl`）。
+三个包均提供：`machineCode()`、`sign()`、`LicenseClient`（上述 6 方法 + `verifyCached` + `purchaseUrl`）。插件适配层 `webextension.js` 额外提供 `deviceId()`（试用防刷设备标识生成与持久化，见 §1 设备标识算法）。
