@@ -44,6 +44,23 @@ test('checkUpdate posts updateCheck and parses content', async () => {
   assert.deepEqual(result, { hasUpdate: true, latestVersion: '1.3.0' });
 });
 
+test('getQuotaTxn posts txn and parses content', async () => {
+  let captured;
+  const fetchImpl = async (url, init) => {
+    captured = { url, body: JSON.parse(init.body) };
+    return new Response(JSON.stringify({ success: true, content: { count: 1, page: 1, pageSize: 10, totalPage: 1, content: [{ createTime: '2026-10-22T00:00:00.000Z', kind: 'quota', requestId: 'r1', amount: 0.5, pending: false }] } }), { status: 200 });
+  };
+  const c = new LicenseClient({ productUniqueCode: 'PRO-2026-001', fetchImpl });
+  const result = await c.getQuotaTxn('LIC', 'MABC', 'tok', 2, 20);
+  assert.match(captured.url, /\/license\/quota\/txn$/);
+  assert.equal(captured.body.licenseCode, 'LIC');
+  assert.equal(captured.body.machineCode, 'MABC');
+  assert.equal(captured.body.activationToken, 'tok');
+  assert.equal(captured.body.page, 2);
+  assert.equal(captured.body.pageSize, 20);
+  assert.equal(result.content[0].kind, 'quota');
+});
+
 test('checkUpdate requires productUniqueCode', () => {
   const c = new LicenseClient({});
   assert.throws(() => c.checkUpdate('1.2.0'), /productUniqueCode required/);

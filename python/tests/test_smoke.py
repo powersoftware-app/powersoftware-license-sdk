@@ -41,6 +41,23 @@ class SmokeTest(unittest.TestCase):
         self.assertEqual(captured["body"]["currentVersion"], "1.2.0")
         self.assertEqual(result, {"hasUpdate": True, "latestVersion": "1.3.0"})
 
+    def test_quota_txn_posts_and_parses(self):
+        captured = {}
+
+        class FakeClient(LicenseClient):
+            def request(self, path, body=None, signed=False, timeout=15.0):
+                captured["path"] = path
+                captured["body"] = body
+                return {"count": 1, "page": 1, "pageSize": 10, "totalPage": 1, "content": [{"createTime": "2026-10-22T00:00:00.000Z", "kind": "quota", "requestId": "r1", "amount": 0.5, "pending": False}]}
+
+        result = FakeClient(product_unique_code="PRO-2026-001").get_quota_txn("LIC", "MABC", "tok", page=2, page_size=20)
+        self.assertEqual(captured["path"], "/license/quota/txn")
+        self.assertEqual(captured["body"]["licenseCode"], "LIC")
+        self.assertEqual(captured["body"]["activationToken"], "tok")
+        self.assertEqual(captured["body"]["page"], 2)
+        self.assertEqual(captured["body"]["pageSize"], 20)
+        self.assertEqual(result["content"][0]["kind"], "quota")
+
     def test_check_update_requires_product_code(self):
         with self.assertRaises(LicenseError):
             LicenseClient().check_update("1.2.0")

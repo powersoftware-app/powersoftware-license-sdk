@@ -136,6 +136,22 @@ class LicenseClient:
             },
         )
 
+    def get_quota_txn(self, license_code: str, machine_code_value: str = None, activation_token: str = "", page: int = 1, page_size: int = 10):
+        """消耗流水查询（QUOTA 产品，只读回读）：把 consume 落在服务端 license_quota_txn 的逐笔扣减明细读回，供用量页 / 订阅卡展示「最近消耗」，无需本地自算累计用量。
+        鉴权与 consume 同族（凭 activation_token），只回本授权码自身的行，跨码越权直接拒绝；只读无副作用，可安全分页 / 轮询。
+        page 从 1 起；page_size 缺省 10，服务端夹到 1-50。
+        返回 { count, page, pageSize, totalPage, content }，流水行按新→旧排序，每行 { createTime, kind, requestId, amount, pending }（quotaUsedAfter 不回带，pending 即其是否为空）。"""
+        return self.request(
+            "/license/quota/txn",
+            {
+                "licenseCode": license_code,
+                "machineCode": machine_code_value or machine_code(),
+                "activationToken": activation_token,
+                "page": page,
+                "pageSize": page_size,
+            },
+        )
+
     def deactivate(self, license_code: str, machine_code_value: str = None):
         return self.request("/license/deactivate", {"licenseCode": license_code, "machineCode": machine_code_value or machine_code()})
 

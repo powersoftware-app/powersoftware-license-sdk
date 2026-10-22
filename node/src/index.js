@@ -344,6 +344,22 @@ export class LicenseClient {
     });
   }
 
+  /**
+   * 消耗流水查询（仅 QUOTA 产品，只读回读；EDITION 不适用）：把 consume 落在服务端 license_quota_txn 的逐笔扣减明细读回，供用量页 / 订阅卡展示「最近消耗」，接入方无需再本地自算累计用量。鉴权与 consume 同族（凭 activationToken），只回本授权码自身的行，跨码越权直接拒绝；只读无副作用，可安全分页 / 轮询。
+   * @param {number} [page=1] 页码，从 1 起
+   * @param {number} [pageSize=10] 每页条数，服务端夹到 1-50
+   * @returns {Promise<{ count, page, pageSize, totalPage, content: Array<{ createTime, kind, requestId, amount, pending }> }>} 分页信封 + 新→旧排序的流水行
+   */
+  getQuotaTxn(licenseCode, machineCodeValue, activationToken, page = 1, pageSize = 10) {
+    return this.request('/license/quota/txn', {
+      licenseCode,
+      machineCode: machineCodeValue,
+      activationToken,
+      page,
+      pageSize,
+    });
+  }
+
   /** 解绑（换机）：通常需登录态，浏览器场景由个人中心调用 */
   deactivate(licenseCode, machineCodeValue) {
     return this.request('/license/deactivate', { licenseCode, machineCode: machineCodeValue });

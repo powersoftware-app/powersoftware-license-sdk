@@ -85,6 +85,24 @@ test('deviceId throws without extension env', async () => {
   await assert.rejects(() => deviceId(), /WebExtension storage unavailable/);
 });
 
+// ---- getQuotaTxn 只读回读 ----
+
+test('getQuotaTxn posts txn with activationToken family', async () => {
+  mockChrome();
+  let captured;
+  const fetchImpl = async (url, init) => {
+    captured = { url, body: JSON.parse(init.body) };
+    return { ok: true, status: 200, json: async () => ({ success: true, content: { count: 0, page: 1, pageSize: 10, totalPage: 0, content: [] } }) };
+  };
+  const c = new LicenseClient({ productUniqueCode: 'PRO-2026-001', fetchImpl });
+  const result = await c.getQuotaTxn('L-1', 'EXT-abc', 'tok');
+  assert.match(captured.url, /\/license\/quota\/txn$/);
+  assert.equal(captured.body.activationToken, 'tok');
+  assert.equal(captured.body.machineCode, 'EXT-abc');
+  assert.equal(captured.body.page, 1);
+  assert.deepEqual(result, { count: 0, page: 1, pageSize: 10, totalPage: 0, content: [] });
+});
+
 // ---- claimTrial 透传 x-device-id 头 ----
 
 /** 捕获 fetch 入参的 mock，返回合法成功信封以走通 request() */
