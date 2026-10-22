@@ -120,7 +120,7 @@ timestamp
 | 激活 | `POST /license/activate` | 无 | `activate(licenseCode, machineCode)` |
 | 校验 | `POST /license/verify` | 无 | `verify(licenseCode, machineCode, activationToken)` |
 | 额度消耗（仅 QUOTA） | `POST /license/quota/consume` | 无（凭 activationToken） | `consume(licenseCode, machineCode, activationToken, amount, requestId, kind)`（`kind` 默认 `quota`，可传 `trial`） |
-| 消耗流水查询（仅 QUOTA） | `POST /license/quota/txn` | 无（凭 activationToken） | 暂无 SDK 方法，直接调 REST（回读本码逐笔消耗明细） |
+| 消耗流水查询（仅 QUOTA） | `POST /license/quota/txn` | 无（凭 activationToken） | `getQuotaTxn(licenseCode, machineCode, activationToken, page, pageSize)`（node / 插件；Python `get_quota_txn`；java 未内建） |
 | 解绑 | `POST /license/deactivate` | 登录（浏览器场景） | `deactivate(licenseCode, machineCode)` |
 | 软件内发码 | `POST /license/software/generate` | HMAC 签名 | `generateForSoftware({...})` |
 | 软件内升级/续费 | `POST /license/software/upgrade` | HMAC 签名 | `upgradeForSoftware({...})` |
@@ -238,7 +238,7 @@ https://www.powersoftware.app/product/license/purchase?productUniqueCode={produc
 | `trialUsed` / `trialRemaining` | QUOTA | 服务端当前试用周期桶的已用 / 剩余 |
 | `trialNextResetTime` | QUOTA | 试用额度下次重置时间（UTC 边界，服务端派生）：重置型周期当前桶滚到下一段的时刻，是 `quotaNextExpiry` 在试用侧的对称字段；`TOTAL`/未启用/EDITION 为 `null` |
 | `consume(licenseCode, machineCode, activationToken, amount, requestId, kind)` | QUOTA | 额度消耗接口，`kind: 'quota' | 'trial'`；EDITION 不调用 |
-| `/license/quota/txn` 流水查询 | QUOTA | 消耗明细回读接口，只回本码行；EDITION 不适用 |
+| `getQuotaTxn(licenseCode, machineCode, activationToken, page, pageSize)`（node / 插件；Python `get_quota_txn`）| QUOTA | 消耗流水回读接口，只回本码行；EDITION 不适用 |
 
 关键提示：
 - **两模型的试用维度互斥**：EDITION 用按天试用（`trialDays`/`trialExpiryTime`），QUOTA 用按次试用周期桶（`trialCount`/`trialPeriodKey`）。`quotaAmount`、`trialCount` 对 EDITION 码恒 `null`。

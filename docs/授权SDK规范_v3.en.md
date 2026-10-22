@@ -119,7 +119,7 @@ Base: `https://www.powersoftware.app/frontApi` (overridable).
 | `/license/activate` | POST | none | `activate` |
 | `/license/verify` | POST | none | `verify` |
 | `/license/quota/consume` | POST | none (`activationToken`) | `consume` |
-| `/license/quota/txn` | POST | none (`activationToken`) | — (no SDK method; call REST) |
+| `/license/quota/txn` | POST | none (`activationToken`) | `getQuotaTxn(licenseCode, machineCode, activationToken, page, pageSize)` (node / webextension; Python `get_quota_txn`; java not built) |
 | `/license/deactivate` | POST | login | `deactivate` |
 | `/license/software/generate` | POST | HMAC | `generateForSoftware` |
 | `/license/software/upgrade` | POST | HMAC | `upgradeForSoftware` |
@@ -215,7 +215,7 @@ Each product picks one pricing model: `licensePricingModel = EDITION` (edition t
 | `trialUsed` / `trialRemaining` | QUOTA | server-side used / remaining of the current trial period bucket |
 | `trialNextResetTime` | QUOTA | trial quota's next reset time (UTC boundary, server-derived): when the current reset-type bucket rolls to the next segment; the trial-side counterpart of `quotaNextExpiry`; `null` for `TOTAL`/disabled/EDITION |
 | `consume(licenseCode, machineCode, activationToken, amount, requestId, kind)` | QUOTA | quota consumption endpoint, `kind: 'quota' | 'trial'`; never called for EDITION |
-| `/license/quota/txn` | QUOTA | consumption-history readback; returns only this code's rows; never applies to EDITION |
+| `getQuotaTxn(licenseCode, machineCode, activationToken, page, pageSize)` (node / webextension; Python `get_quota_txn`) | QUOTA | consumption-history readback; returns only this code's rows; never applies to EDITION |
 
 Key notes:
 - **Trial dimensions are mutually exclusive between models**: EDITION uses day-based trials (`trialDays`/`trialExpiryTime`); QUOTA uses per-use trial buckets (`trialCount`/`trialPeriodKey`). `quotaAmount` and `trialCount` are always `null` for EDITION codes.
